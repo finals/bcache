@@ -614,7 +614,7 @@ static void journal_write_unlocked(struct closure *cl)
 	if (!w->need_write) {
 		closure_return_with_destructor(cl, journal_write_unlock);
 		return;
-	} else if (journal_full(&c->jounrnal)) { //journal区域已满，调用joural_reclaim回收空间
+	} else if (journal_full(&c->journal)) { //journal区域已满，调用joural_reclaim回收空间
 		journal_reclaim(c);
 		spin_unlock(&c->journal.lock);
 
