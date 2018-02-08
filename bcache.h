@@ -690,25 +690,26 @@ struct cache_set {
 	enum			{
 		ON_ERROR_UNREGISTER,
 		ON_ERROR_PANIC,
-	}			on_error;
+	}			    on_error;
 #define DEFAULT_IO_ERROR_LIMIT 8
 	unsigned		error_limit;
 	unsigned		error_decay;
 
-	unsigned short		journal_delay_ms;
+	unsigned short	journal_delay_ms;
 	bool			expensive_debug_checks;
 	unsigned		verify:1;
 	unsigned		key_merging_disabled:1;
 	unsigned		gc_always_rewrite:1;
 	unsigned		shrinker_disabled:1;
 	unsigned		copy_gc_enabled:1;
-        unsigned                max_writeback_rate_when_idle:1;
-        unsigned                request_to_cache_idle:1;
+    unsigned        max_writeback_rate_when_idle:1;
+    unsigned        request_to_cache_idle:1;
 
 #define BUCKET_HASH_BITS	12
 	struct hlist_head	bucket_hash[1 << BUCKET_HASH_BITS];
 
-        uint64_t                last_request_time;
+    DECLARE_HEAP(struct btree *, flush_btree);
+    uint64_t                last_request_time;
 };
 
 struct bbio {
