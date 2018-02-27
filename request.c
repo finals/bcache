@@ -1020,11 +1020,9 @@ static void cached_dev_write(struct cached_dev *dc, struct search *s)
 			flush->bi_opf = REQ_OP_WRITE | REQ_PREFLUSH;
 
             /* I/O request sent to backing device */
-			closure_bio_submit(s->iop.c, flush, cl);  //将数据写入缓存设备
+			closure_bio_submit(s->iop.c, flush, cl);  //将数据写入后端设备
 		}
-		bch_writeback_add(dc);
-		
-	} else {
+	} else { //writethrough模式
 		s->iop.bio = bio_clone_fast(bio, GFP_NOIO, dc->disk.bio_split);
 		/* I/O request sent to backing device */
 		bio->bi_end_io = backing_request_endio;
