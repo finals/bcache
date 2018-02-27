@@ -97,7 +97,7 @@ static const char *read_super(struct cache_sb *sb, struct block_device *bdev,
 	sb->flags		= le64_to_cpu(s->flags);
 	sb->seq			= le64_to_cpu(s->seq);
 	sb->last_mount		= le32_to_cpu(s->last_mount);
-	sb->first_bucket	= le16_to_cpu(s->first_bucket);
+	sb->first_bucket	= le16_to_cpu(s->first_bucket); //默认值1
 	sb->keys		= le16_to_cpu(s->keys);
 
 	for (i = 0; i < SB_JOURNAL_BUCKETS; i++)  //journal所在的磁盘空间(256个bucket, 默认bucket_size为512k)
@@ -125,14 +125,14 @@ static const char *read_super(struct cache_sb *sb, struct block_device *bdev,
 	if (bch_is_zero(sb->uuid, 16))
 		goto err;
 
-	sb->block_size	= le16_to_cpu(s->block_size);
+	sb->block_size	= le16_to_cpu(s->block_size); //默认值1
 
 	err = "Superblock block size smaller than device block size";
 	if (sb->block_size << 9 < bdev_logical_block_size(bdev))
 		goto err;
 
-	switch (sb->version) {  //根据version判断后端设备类型
-	case BCACHE_SB_VERSION_BDEV:
+	switch (sb->version) {  //根据version判断设备类型
+	case BCACHE_SB_VERSION_BDEV:  //后端设备
 		sb->data_offset	= BDEV_DATA_START_DEFAULT;
 		break;
 	case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
@@ -833,7 +833,7 @@ static int bcache_device_init(struct bcache_device *d, unsigned block_size,
 	if (!q)
 		return -ENOMEM;
 
-	blk_queue_make_request(q, NULL);
+	blk_queue_make_request(q, NULL); //设置queue中的make_request为NULL
 	d->disk->queue			= q;     //设置gendisk的queue
 	q->queuedata			= d;
 	q->backing_dev_info->congested_data = d;
@@ -1230,7 +1230,7 @@ static int cached_dev_init(struct cached_dev *dc, unsigned block_size)
 	spin_lock_init(&dc->io_lock);
 	bch_cache_accounting_init(&dc->accounting, &dc->disk.cl); //包含统计数据
 
-	dc->sequential_cutoff		= 4 << 20;
+	dc->sequential_cutoff		= 4 << 20; //连续IO数据量大于4M，则绕过缓存
 
 	for (io = dc->io; io < dc->io + RECENT_IO; io++) {
 		list_add(&io->lru, &dc->io_lru);
@@ -1242,7 +1242,7 @@ static int cached_dev_init(struct cached_dev *dc, unsigned block_size)
 	if (dc->disk.stripe_size)
 		dc->partial_stripes_expensive =
 			q->limits.raid_partial_stripes_expensive;
-    //注册block_device, 并初始化gendisk
+    //bcacheX注册block_device, 并初始化gendisk
 	ret = bcache_device_init(&dc->disk, block_size,
 			 dc->bdev->bd_part->nr_sects - dc->sb.data_offset);
 	if (ret)
@@ -1274,7 +1274,7 @@ static void register_bdev(struct cache_sb *sb, struct page *sb_page,
 	struct cache_set *c;
 
 	memcpy(&dc->sb, sb, sizeof(struct cache_sb));
-	dc->bdev = bdev; //bdev是真正的后端块设备对象
+	dc->bdev = bdev; //bdev是真正的后端block_device对象
 	dc->bdev->bd_holder = dc;
 
 	bio_init(&dc->sb_bio, dc->sb_bio.bi_inline_vecs, 1);
@@ -2159,7 +2159,7 @@ static ssize_t register_bcache(struct kobject *k, struct kobj_attribute *attr,
 		goto err;
 
 	err = "failed to open device";
-	bdev = blkdev_get_by_path(strim(path),    //根据名字打开块设备
+	bdev = blkdev_get_by_path(strim(path),    //根据路径名字找到block_device
 				  FMODE_READ|FMODE_WRITE|FMODE_EXCL,
 				  sb);
 	if (IS_ERR(bdev)) {
