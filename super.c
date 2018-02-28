@@ -903,7 +903,7 @@ static int cached_dev_status_update(void *arg)
 		schedule_timeout_interruptible(HZ);
 	}
 
-	dc->status_update_thread = NULL;
+	wait_for_kthread_stop();
 	return 0;
 }
 
