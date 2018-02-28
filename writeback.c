@@ -187,7 +187,13 @@ schedule_delay:
     if (wakeup) {
         bch_writeback_queue(dc);
     }
-	if (test_bit(BCACHE_DEV_WB_RUNNING, &dc->disk.flags)) {
+
+    /*
+	 * CACHE_SET_IO_DISABLE might be set via sysfs interface,
+	 * check it here too.
+	 */
+	if (test_bit(BCACHE_DEV_WB_RUNNING, &dc->disk.flags) &&
+	    !test_bit(CACHE_SET_IO_DISABLE, &c->flags)) {
 		schedule_delayed_work(&dc->writeback_rate_update,
  			      dc->writeback_rate_update_seconds * HZ);
 	}
@@ -705,6 +711,7 @@ static int bch_writeback_thread(void *arg)
 
 	dc->writeback_thread = NULL;
 	cached_dev_put(dc);
+    wait_for_kthread_stop();
 
 	return 0;
 }

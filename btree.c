@@ -1800,6 +1800,7 @@ static int bch_gc_thread(void *arg)
 		bch_btree_gc(c);
 	}
 
+    wait_for_kthread_stop();
 	return 0;
 }
 
