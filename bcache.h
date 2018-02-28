@@ -188,6 +188,7 @@
 #include <linux/refcount.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
+#include <linux/kthread.h>
 
 #include "bset.h"
 #include "util.h"
