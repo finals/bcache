@@ -398,7 +398,7 @@ static void read_dirty(struct cached_dev *dc)
 			 * Don't combine too many operations, even if they
 			 * are all small.
 			 */
-			if (nk >= MAX_WRITEBACKS_IN_PASS)
+			if (nk >= MAX_WRITEBACKS_IN_PASS)  //一次最多5个key
 				break;
 
 			/*
@@ -444,8 +444,8 @@ static void read_dirty(struct cached_dev *dc)
 			bio_set_op_attrs(&io->bio, REQ_OP_READ, 0);
 			io->bio.bi_iter.bi_sector = PTR_OFFSET(&w->key, 0);
 			bio_set_dev(&io->bio,
-				    PTR_CACHE(dc->disk.c, &w->key, 0)->bdev);
-			io->bio.bi_end_io	= read_dirty_endio;
+				    PTR_CACHE(dc->disk.c, &w->key, 0)->bdev); //设置bio的目标缓存设备
+			io->bio.bi_end_io	= read_dirty_endio;  //bio完成后回调
 
 			if (bio_alloc_pages(&io->bio, GFP_KERNEL))
 				goto err_free;
@@ -600,7 +600,7 @@ next:
 
 /*
  * Returns true if we scanned the entire disk
- */
+ */ //寻找b+树种的脏节点，填充到cached_dev中的writeback_keys中
 static bool refill_dirty(struct cached_dev *dc)
 {
 	struct keybuf *buf = &dc->writeback_keys;
@@ -674,7 +674,7 @@ static int bch_writeback_thread(void *arg)
 		}
 		set_current_state(TASK_RUNNING);
 
-		searched_full_index = refill_dirty(dc);
+		searched_full_index = refill_dirty(dc); //遍历cache_set中的b+tree，将脏节点存到cached_dev中
 
 		if (searched_full_index &&
 		    RB_EMPTY_ROOT(&dc->writeback_keys.keys)) {

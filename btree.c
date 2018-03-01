@@ -2318,9 +2318,9 @@ static int bch_btree_map_keys_recurse(struct btree *b, struct btree_op *op,
 	bch_btree_iter_init(&b->keys, &iter, from);
 
 	while ((k = bch_btree_iter_next_filter(&iter, &b->keys, bch_ptr_bad))) {
-		ret = !b->level
-			? fn(op, b, k)  //level==0表示叶节点
-			: btree(map_keys_recurse, k, b, op, from, fn, flags); //递归本函数，遍历btree
+		ret = !b->level  //bcache的b+树中，由叶子节点保存bkey，非叶子节点用作索引
+			? fn(op, b, k)  //level==0表示叶节点，对叶子节点调用: refill_keybuf_fn
+			: btree(map_keys_recurse, k, b, op, from, fn, flags); //非叶子节点，递归本函数
 		from = NULL;
 
 		if (ret != MAP_CONTINUE)
@@ -2367,7 +2367,7 @@ struct refill {
 };
 
 static int refill_keybuf_fn(struct btree_op *op, struct btree *b,
-			    struct bkey *k) //将满足条件refill->pred的key加入到RBTtree中
+			    struct bkey *k) //将满足条件refill->pred(dirty_pred)的key加入到RBTtree中
 {
 	struct refill *refill = container_of(op, struct refill, op);
 	struct keybuf *buf = refill->buf;
@@ -2381,21 +2381,21 @@ static int refill_keybuf_fn(struct btree_op *op, struct btree *b,
 	if (!KEY_SIZE(k)) /* end key */
 		goto out;
 
-	if (refill->pred(buf, k)) {
+	if (refill->pred(buf, k)) { //调用函数dirty_pred，判断是否是脏节点
 		struct keybuf_key *w;
 
 		spin_lock(&buf->lock);
 
-		w = array_alloc(&buf->freelist);
+		w = array_alloc(&buf->freelist); //从keybuf获取空闲的keybuf_key(w)
 		if (!w) {
 			spin_unlock(&buf->lock);
 			return MAP_DONE;
 		}
 
 		w->private = NULL;
-		bkey_copy(&w->key, k);
+		bkey_copy(&w->key, k); //将bkey拷贝到w中
 
-		if (RB_INSERT(&buf->keys, w, node, keybuf_cmp))
+		if (RB_INSERT(&buf->keys, w, node, keybuf_cmp)) //将w插入红黑树keybuf->keys
 			array_free(&buf->freelist, w);
 		else
 			refill->nr_found++;
@@ -2423,7 +2423,7 @@ void bch_refill_keybuf(struct cache_set *c, struct keybuf *buf,
 	refill.buf	= buf;
 	refill.end	= end;
 	refill.pred	= pred;
-    //遍历b+tree叶子节点来填充keybuf
+    //遍历b+tree叶子节点来填充keybuf(rbtree)
 	bch_btree_map_keys(&refill.op, c, &buf->last_scanned,
 			   refill_keybuf_fn, MAP_END_KEY);
 
