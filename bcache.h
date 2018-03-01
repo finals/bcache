@@ -525,7 +525,7 @@ struct cache_set {
 	struct bcache_device	**devices;
 	unsigned		devices_max_used;
 	struct list_head	cached_devs;    //后端设备链表
-	uint64_t		cached_dev_sectors; //后端设备的总扇区数 
+	uint64_t		cached_dev_sectors; //所有后端设备的扇区数的总和
 	struct closure		caching;        //引用计数--与后端设备数量相同
 
 	struct closure		sb_write;

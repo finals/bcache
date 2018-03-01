@@ -37,8 +37,8 @@ static uint64_t __calc_target_rate(struct cached_dev *dc)
 	 * backing volume uses about 2% of the cache for dirty data.
 	 */
 	uint32_t bdev_share =
-		div64_u64(bdev_sectors(dc->bdev) << WRITEBACK_SHARE_SHIFT,
-				c->cached_dev_sectors);
+		div64_u64(bdev_sectors(dc->bdev) << WRITEBACK_SHARE_SHIFT, //WRITEBACK_SHARE_SHIFT表示以16K对齐
+				c->cached_dev_sectors); //当前后端设备的扇区数 / 所有后端设备的扇区数的和
 
 	uint64_t cache_dirty_target =
  		div_u64(cache_sectors * dc->writeback_percent, 100);
@@ -75,8 +75,8 @@ static void __update_writeback_rate(struct cached_dev *dc)
 	int64_t target = __calc_target_rate(dc);
 	int64_t dirty = bcache_dev_sectors_dirty(&dc->disk);
 	int64_t error = dirty - target;
-	int64_t proportional_scaled =
-		div_s64(error, dc->writeback_rate_p_term_inverse);
+	int64_t proportional_scaled = //error是表示为超出目标缓存数据量的部分，proportional_scaled表示在
+		div_s64(error, dc->writeback_rate_p_term_inverse);  //writeback_rate_p_term_inverse的周期内完成回写，所需要的writeback速率
 	int64_t integral_scaled;
 	uint32_t new_rate;
 
@@ -93,15 +93,15 @@ static void __update_writeback_rate(struct cached_dev *dc)
 		 * writeback_rate_update_seconds to keep the integral
 		 * term dimensioned properly.
 		 */
-		dc->writeback_rate_integral += error *
-			dc->writeback_rate_update_seconds;
+		dc->writeback_rate_integral += error *  //根据当前缓存数据量与目标数据量的差值，计算出integral，用于调整writeback速率
+			dc->writeback_rate_update_seconds;  //默认为5秒
 	}
 
 	integral_scaled = div_s64(dc->writeback_rate_integral,
 			dc->writeback_rate_i_term_inverse);
-
+    //新的writeback速率由proportional_scaled与integral_scaled之和
 	new_rate = clamp_t(int32_t, (proportional_scaled + integral_scaled),
-			dc->writeback_rate_minimum, NSEC_PER_SEC);
+			dc->writeback_rate_minimum, NSEC_PER_SEC); //writeback_rate最小是8个sector(4K)
 
 	dc->writeback_rate_proportional = proportional_scaled;
 	dc->writeback_rate_integral_scaled = integral_scaled;
