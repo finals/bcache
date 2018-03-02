@@ -1030,11 +1030,15 @@ void bch_cached_dev_detach(struct cached_dev *dc)
 {
 	lockdep_assert_held(&bch_register_lock);
 
-	if (test_bit(BCACHE_DEV_CLOSING, &dc->disk.flags))
+	if (test_bit(BCACHE_DEV_CLOSING, &dc->disk.flags)) {
+        pr_info("bcache dev in closing state: %lu", *(&dc->disk.flags);
 		return;
+    }
 
-	if (test_and_set_bit(BCACHE_DEV_DETACHING, &dc->disk.flags))
+	if (test_and_set_bit(BCACHE_DEV_DETACHING, &dc->disk.flags)) {
+        pr_info("bcache dev in detaching state: %lu", *(&dc->disk.flags));
 		return;
+    }
 
 	/*
 	 * Block the device from being closed and freed until we're finished

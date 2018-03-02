@@ -856,8 +856,11 @@ do {									\
 
 static inline void cached_dev_put(struct cached_dev *dc)
 {
-	if (!refcount_inc_not_zero(&dc->count))
+    pr_info("cached_dev_put entry, dc->count: %d", (int)&dc->count);
+	if (refcount_dec_and_test(&dc->count)) {
+        pr_info("cached_dev_put schedule_work, dc->count: %d", (int)&dc->count);
 		schedule_work(&dc->detach);
+    }
 }
 
 static inline bool cached_dev_get(struct cached_dev *dc)
