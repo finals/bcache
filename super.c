@@ -1031,7 +1031,7 @@ void bch_cached_dev_detach(struct cached_dev *dc)
 	lockdep_assert_held(&bch_register_lock);
 
 	if (test_bit(BCACHE_DEV_CLOSING, &dc->disk.flags)) {
-        pr_info("bcache dev in closing state: %lu", *(&dc->disk.flags);
+        pr_info("bcache dev in closing state: %lu", *(&dc->disk.flags));
 		return;
     }
 
