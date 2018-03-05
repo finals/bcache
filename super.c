@@ -2084,7 +2084,7 @@ static int register_cache(struct cache_sb *sb, struct page *sb_page,
 	}
 
 	mutex_lock(&bch_register_lock);
-	err = register_cache_set(ca);  //注册cache_set, 启动gc线程
+	err = register_cache_set(ca);  //注册cache_set, 启动gc内核线程
 	mutex_unlock(&bch_register_lock);
 
 	if (err) {

@@ -351,8 +351,8 @@ static int bch_allocator_thread(void *arg)
 
 retry_invalidate:
 		allocator_wait(ca, ca->set->gc_mark_valid &&
-			       !ca->invalidate_needs_gc); //等待gc完成
-		invalidate_buckets(ca);
+			       !ca->invalidate_needs_gc); //同时只允许一个gc工作，如果有其他gc工作，则等待gc完成
+		invalidate_buckets(ca); //将bucket置为invalidate，将触发gc完成缓存替换
 
 		/*
 		 * Now, we write their new gens to disk so we can start writing

@@ -74,9 +74,9 @@ static void __update_writeback_rate(struct cached_dev *dc)
 	 */
 	int64_t target = __calc_target_rate(dc);
 	int64_t dirty = bcache_dev_sectors_dirty(&dc->disk);
-	int64_t error = dirty - target;
-	int64_t proportional_scaled = //error是表示为超出目标缓存数据量的部分，proportional_scaled表示在
-		div_s64(error, dc->writeback_rate_p_term_inverse);  //writeback_rate_p_term_inverse的周期内完成回写，所需要的writeback速率
+	int64_t error = dirty - target; //error是表示当前缓存数据量与目标缓存数据量的差值部分
+	int64_t proportional_scaled =   //proportional_scaled表示在writeback_rate_p_term_inverse的周期内完成回写所需要的writeback速率
+		div_s64(error, dc->writeback_rate_p_term_inverse);  //
 	int64_t integral_scaled;
 	uint32_t new_rate;
 
@@ -674,7 +674,7 @@ static int bch_writeback_thread(void *arg)
 		}
 		set_current_state(TASK_RUNNING);
 
-		searched_full_index = refill_dirty(dc); //遍历cache_set中的b+tree，将脏节点存到cached_dev中
+		searched_full_index = refill_dirty(dc); //遍历cache_set中的b+tree，将脏节点存到cached_dev的writeback_keys中
 
 		if (searched_full_index &&
 		    RB_EMPTY_ROOT(&dc->writeback_keys.keys)) {
