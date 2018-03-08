@@ -94,6 +94,7 @@ read_attribute(writeback_rate_debug);
 
 read_attribute(stripe_size);
 read_attribute(partial_stripes_expensive);
+read_attribute(version);
 
 rw_attribute(synchronous);
 rw_attribute(journal_delay_ms);
@@ -186,6 +187,7 @@ SHOW(__bch_cached_dev)
 		     bcache_dev_sectors_dirty(&dc->disk) << 9);
 
 	sysfs_hprint(stripe_size,	dc->disk.stripe_size << 9);
+    sysfs_hprint(version, "5.4.1");
 	var_printf(partial_stripes_expensive,	"%u");
 
 	var_hprint(sequential_cutoff);
@@ -374,6 +376,7 @@ static struct attribute *bch_cached_dev_files[] = {
     &sysfs_writeback_cutoff_sync,
 	&sysfs_dirty_data,
 	&sysfs_stripe_size,
+	&sysfs_version,
 	&sysfs_partial_stripes_expensive,
 	&sysfs_sequential_cutoff,
 	&sysfs_clear_stats,
