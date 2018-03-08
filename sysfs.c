@@ -185,8 +185,8 @@ SHOW(__bch_cached_dev)
 			       integral, change, next_io);
 	}
 
-    if attr == &sysfs_version {
-        return sprintf(buf, VERSION)
+    if (attr == &sysfs_version) {
+        return sprintf(buf, VERSION);
     }
 
 	sysfs_hprint(dirty_data,
