@@ -29,6 +29,8 @@ static const char * const error_actions[] = {
 	NULL
 };
 
+#define VERSION "5.4.1"
+
 write_attribute(attach);
 write_attribute(detach);
 write_attribute(unregister);
@@ -183,11 +185,14 @@ SHOW(__bch_cached_dev)
 			       integral, change, next_io);
 	}
 
+    if attr == &sysfs_version {
+        return sprintf(buf, VERSION)
+    }
+
 	sysfs_hprint(dirty_data,
 		     bcache_dev_sectors_dirty(&dc->disk) << 9);
 
 	sysfs_hprint(stripe_size,	dc->disk.stripe_size << 9);
-    sysfs_hprint(version, "5.4.1");
 	var_printf(partial_stripes_expensive,	"%u");
 
 	var_hprint(sequential_cutoff);
