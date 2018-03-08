@@ -836,7 +836,7 @@ unsigned bch_btree_insert_key(struct btree_keys *b, struct bkey *k,
 		return status;
 
 	status = BTREE_INSERT_STATUS_INSERT;
-    //遍历检察btree中的bset是否已排序
+    //遍历检查btree中的bset是否已排序
 	while (m != bset_bkey_last(i) &&
 	       bkey_cmp(k, b->ops->is_extents ? &START_KEY(m) : m) > 0)
 		prev = m, m = bkey_next(m);

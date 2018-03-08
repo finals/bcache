@@ -729,7 +729,7 @@ struct bbio {
 #define BTREE_PRIO		USHRT_MAX
 #define INITIAL_PRIO		32768U
 
-#define BCH_IDLE_DURATION_MSECS 10000U
+#define BCH_IDLE_DURATION_MSECS 5000U
 
 #define btree_bytes(c)		((c)->btree_pages * PAGE_SIZE)
 #define btree_blocks(b)							\
