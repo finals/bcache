@@ -186,7 +186,7 @@ SHOW(__bch_cached_dev)
 	}
 
     if (attr == &sysfs_version) {
-        return sprintf(buf, VERSION);
+        return sprintf(buf, "%s\n", VERSION);
     }
 
 	sysfs_hprint(dirty_data,
