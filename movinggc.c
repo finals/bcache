@@ -214,7 +214,7 @@ void bch_moving_gc(struct cache_set *c)
 			if (GC_MARK(b) == GC_MARK_METADATA || //元数据bucket不能回收
 			    !GC_SECTORS_USED(b) || //bucket的使用量为0
 			    GC_SECTORS_USED(b) == ca->sb.bucket_size ||  //bucket使用量为满
-			    atomic_read(&b->pin))
+			    atomic_read(&b->pin)) //bucket的pin等于0表示不能回收
 				continue;
 
 			if (!heap_full(&ca->heap)) {
