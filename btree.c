@@ -1779,13 +1779,8 @@ static bool gc_should_run(struct cache_set *c)
 	if (atomic_read(&c->sectors_to_gc) < 0)
 		return true;
 
-    if (c->gc_stats.in_use > CUTOFF_WRITEBACK) { //暂时先用CUTOFF_WRITEBACK(40)顶一下
-        for_each_cache(ca, c, i) {
-            if (ca->set->gc_mark_valid && !ca->invalidate_needs_gc) { //同时只允许一个gc工作，如果有其他gc工作，则放弃
-                invalidate_buckets(ca); //将bucket置为invalidate，将触发gc完成缓存替换
-                return true;
-            }
-        } 
+    if (c->gc_stats.in_use > 50) { //暂时先用50顶一下
+        return true;
     }
 
 	return false;
