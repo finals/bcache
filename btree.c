@@ -1767,7 +1767,7 @@ static void bch_btree_gc(struct cache_set *c)
 	bch_moving_gc(c); //根据标志位，完成实际gc工作
 }
 
-static bool gc_should_run(struct cache_set *c)
+static bool gc_should_run(struct cache_set *c, uint64_t last_gc_time)
 {
 	struct cache *ca;
 	unsigned i;
@@ -1779,7 +1779,7 @@ static bool gc_should_run(struct cache_set *c)
 	if (atomic_read(&c->sectors_to_gc) < 0)
 		return true;
 
-    if (c->gc_stats.in_use > 50) { //暂时先用50顶一下
+    if (c->gc_stats.in_use > 50 && local_clock() - last_gc_time > 30 * NSEC_PER_SEC) { //暂时先用50, 30顶一下
         return true;
     }
 
@@ -1789,12 +1789,13 @@ static bool gc_should_run(struct cache_set *c)
 static int bch_gc_thread(void *arg)
 {
 	struct cache_set *c = arg;
+    uint64_t last_gc_time = local_clock();
 
 	while (1) {
 		wait_event_interruptible(c->gc_wait,
 			   kthread_should_stop() ||
 			   test_bit(CACHE_SET_IO_DISABLE, &c->flags) ||
-			   gc_should_run(c)); //在wait_event_interruptible内部，将会循环调用gc_should_run
+			   gc_should_run(c, last_gc_time)); //在wait_event_interruptible内部，将会循环调用gc_should_run
 
 		if (kthread_should_stop() ||
 		    test_bit(CACHE_SET_IO_DISABLE, &c->flags))
@@ -1802,6 +1803,7 @@ static int bch_gc_thread(void *arg)
 
 		set_gc_sectors(c);
 		bch_btree_gc(c);
+		last_gc_time = local_clock();
 	}
 
     wait_for_kthread_stop();
