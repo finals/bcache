@@ -667,6 +667,7 @@ static unsigned long bch_mca_scan(struct shrinker *shrink,
 	struct btree *b, *t;
 	unsigned long i, nr = sc->nr_to_scan;
 	unsigned long freed = 0;
+	unsigned int btree_cache_used;
 
 	if (c->shrinker_disabled)
 		return SHRINK_STOP;
@@ -703,7 +704,8 @@ static unsigned long bch_mca_scan(struct shrinker *shrink,
 		}
 	}
 
-	for (i = 0; (nr--) && i < c->btree_cache_used; i++) {
+	btree_cache_used = c->btree_cache_used;
+	for (i = 0; freed < nr && i < btree_cache_used; i++) {
 		if (list_empty(&c->btree_cache))
 			goto out;
 
@@ -721,7 +723,7 @@ static unsigned long bch_mca_scan(struct shrinker *shrink,
 	}
 out:
 	mutex_unlock(&c->bucket_lock);
-	return freed;
+	return freed * c->btree_pages;
 }
 
 static unsigned long bch_mca_count(struct shrinker *shrink,
