@@ -604,6 +604,10 @@ struct cache_set {
 	 */
 	atomic_t		rescale;
 	/*
+	 * used for GC, identify if any front side I/Os is inflight
+	 */
+	atomic_t		io_inflight;
+	/*
 	 * When we invalidate buckets, we use both the priority and the amount
 	 * of good data to determine which buckets to reuse first - to weight
 	 * those together consistently we keep track of the smallest nonzero
