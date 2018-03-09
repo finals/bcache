@@ -703,11 +703,12 @@ static void search_free(struct closure *cl)
 {
 	struct search *s = container_of(cl, struct search, cl);
 
-    atomic_dec(&s->d->c->io_inflight);
 	if (s->iop.bio)
 		bio_put(s->iop.bio);
 
     bio_complete(s);
+    atomic_dec(&s->d->c->io_inflight);
+    
 	closure_debug_destroy(cl);
 	mempool_free(s, s->d->c->search);
 }
