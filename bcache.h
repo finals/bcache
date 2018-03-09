@@ -475,6 +475,7 @@ struct cache {
 
 struct gc_stat {
 	size_t			nodes;
+	size_t			nodes_pre;
 	size_t			key_bytes;
 
 	size_t			nkeys;
