@@ -118,6 +118,8 @@ static void __update_writeback_rate(struct cached_dev *dc)
         if (dc->writeback_rate_minimum < 8) {
             dc->writeback_rate_minimum = 8;
         }
+	} else {
+        dc->writeback_rate_minimum = 8;
 	}
 
 	integral_scaled = div_s64(dc->writeback_rate_integral,
