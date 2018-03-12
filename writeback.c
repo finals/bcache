@@ -735,12 +735,13 @@ static int bch_writeback_thread(void *arg)
 
 		if (searched_full_index) {
 			unsigned delay = dc->writeback_delay * HZ;
-
+			
+            trigger_bucket_gc(c); //writeback线程睡眠之前，触发gc回收bucket
+            
 			while (delay &&
 			       !kthread_should_stop() &&
 			       !test_bit(CACHE_SET_IO_DISABLE, &c->flags) &&
 			       !test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags)) {
-			    trigger_bucket_gc(c); //writeback线程睡眠之前，触发gc回收bucket
 				delay = schedule_timeout_interruptible(delay);
 			}
 			bch_ratelimit_reset(&dc->writeback_rate);
