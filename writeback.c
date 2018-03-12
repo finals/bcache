@@ -671,10 +671,10 @@ static void trigger_bucket_gc(struct cache_set *c, struct cached_dev *dc)
         goto trigger;
     } else if (c->gc_stats.in_use < 70 && now - c->gc_stats.last_trigger_gc_time > 300 * NSEC_PER_SEC) {
         goto trigger;
-    } else if (c->gc_stats.in_use < 95 && now - c->gc_stats.last_trigger_gc_time > 60 * NSEC_PER_SEC) {
+    } else (now - c->gc_stats.last_trigger_gc_time > 60 * NSEC_PER_SEC) {
         goto trigger;
     }
-
+    
     //do nothing
     return;
 trigger:
