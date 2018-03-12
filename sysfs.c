@@ -100,8 +100,6 @@ rw_attribute(writeback_rate_i_term_inverse);
 rw_attribute(writeback_rate_p_term_inverse);
 rw_attribute(writeback_rate_minimum);
 rw_attribute(writeback_cutoff_sync);
-rw_attribute(writeback_early);
-rw_attribute(cached_dev_type);
 read_attribute(writeback_rate_debug);
 
 read_attribute(stripe_size);
@@ -155,7 +153,6 @@ SHOW(__bch_cached_dev)
 	var_print(writeback_percent);
     var_print(writeback_idle_duration_msecs);
     var_printf(writeback_cutoff_sync, "%i");
-    var_printf(writeback_early, "%i");
 	sysfs_hprint(writeback_rate,	dc->writeback_rate.rate << 9);
 	sysfs_hprint(io_errors, 	atomic_read(&dc->io_errors));
 	sysfs_printf(io_error_limit,	"%i", dc->error_limit);
@@ -164,19 +161,6 @@ SHOW(__bch_cached_dev)
 	var_print(writeback_rate_i_term_inverse);
 	var_print(writeback_rate_p_term_inverse);
 	var_print(writeback_rate_minimum);
-
-	if (attr == &sysfs_cached_dev_type) {
-        switch(dc->type) {
-        case CACHED_DEV_SATA_HDD:
-        case CACHED_DEV_SAS_HDD:
-        case CACHED_DEV_SATA_SSD:
-        case CACHED_DEV_SAS_SSD:
-        case CACHED_DEV_PCIE_SSD:
-            return sprintf(buf, "%s\n", cached_dev_type_strings[dc->type]);
-        default:
-            return sprintf(buf, "unknown\n");
-        }
-	}
 
 	if (attr == &sysfs_writeback_rate_debug) {
 		char rate[20];
@@ -256,7 +240,6 @@ STORE(__cached_dev)
 	d_strtoul(writeback_running);
 	d_strtoul(writeback_delay);
 	d_strtoul(writeback_cutoff_sync);
-	d_strtoul(writeback_early);
 
 	sysfs_strtoul_clamp(writeback_percent, dc->writeback_percent, 0, 40);
         sysfs_strtoul_clamp(writeback_idle_duration_msecs, dc->writeback_idle_duration_msecs, 1000UL, INT_MAX);
@@ -272,8 +255,6 @@ STORE(__cached_dev)
 	d_strtoul_nonzero(writeback_rate_p_term_inverse);
 
     sysfs_strtoul_clamp(io_error_limit, dc->error_limit, 0, INT_MAX);
-
-    sysfs_strtoul_clamp(cached_dev_type, dc->type, 0, 4);
 
 	if (attr == &sysfs_io_disable) {
 		int v = strtoul_or_return(buf);
@@ -402,12 +383,10 @@ static struct attribute *bch_cached_dev_files[] = {
 	&sysfs_writeback_rate_p_term_inverse,
 	&sysfs_writeback_rate_debug,
 	&sysfs_errors,
-	&sysfs_cached_dev_type,
 	&sysfs_io_error_limit,
 	&sysfs_io_disable,
     &sysfs_writeback_idle_duration_msecs,
     &sysfs_writeback_cutoff_sync,
-    &sysfs_writeback_early,
 	&sysfs_dirty_data,
 	&sysfs_stripe_size,
 	&sysfs_version,

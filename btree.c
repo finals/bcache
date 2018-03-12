@@ -1194,7 +1194,7 @@ static uint8_t __bch_btree_mark_key(struct cache_set *c, int level,
 			continue;
 
 		g = PTR_BUCKET(c, k, i);
-
+        //如果bucket->gen > key->gen则不用gc; 该函数同时计算key->gen - bucket->gen的最大差值； 更新gc信息
 		if (gen_after(g->last_gc, PTR_GEN(k, i)))
 			g->last_gc = PTR_GEN(k, i);
 
