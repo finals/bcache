@@ -295,6 +295,14 @@ enum stop_on_faliure {
     BCH_CACHED_DEV_STOP_MODE_MAX,
 };
 
+enum cached_dev_type {
+    CACHED_DEV_SATA_HDD = 0, 
+    CACHED_DEV_SAS_HDD  = 1,
+    CACHED_DEV_SATA_SSD = 2,
+    CACHED_DEV_SAS_SSD  = 3,
+    CACHED_DEV_PCIE_SSD = 4,
+};
+
 struct cached_dev {
 	struct list_head	list;
 	struct bcache_device	disk;
@@ -368,7 +376,7 @@ struct cached_dev {
 	/* The rest of this all shows up in sysfs */
 	unsigned		sequential_cutoff;
 	unsigned		readahead;
-	
+	unsigned        type;  //后端设备类型HHD或SSD
 	unsigned		io_disable:1;
 	unsigned		verify:1;
 	unsigned		bypass_torture_test:1;
@@ -377,6 +385,7 @@ struct cached_dev {
 	unsigned		writeback_metadata:1;
 	unsigned		writeback_running:1;
 	unsigned        writeback_cutoff_sync:1;
+	unsigned        writeback_early:1;
 	unsigned char	writeback_percent;
 	unsigned		writeback_delay;
 

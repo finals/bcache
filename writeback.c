@@ -17,6 +17,21 @@
 #include <linux/sched/clock.h>
 #include <trace/events/bcache.h>
 
+#define SATA_HDD_WB_RATE 204800  //以扇区为单位,100MB/s
+#define SAS_HDD_WB_RATE  262144  //128MB/s
+#define SATA_SSD_WB_RATE 524288  //256MB/s
+#define SAS_SSD_WB_RATE  524288  //256MB/s
+#define PCIE_SSD_WB_RATE 1048576 //512MB/s
+
+//回写速率，数据下标对应cached_dev_type
+static const unsigned const cached_dev_wb_rate = {
+    204800,   //SATA HDD 100MB/s
+    262144,   //SAS  HDD 128MB/s
+    524288,   //SATA SSD 256MB/s
+    524288,   //SAS  SSD 256MB/s
+    1048576,  //PCIE SSD 512MB/s
+}
+
 /* Rate limiting */
 
 static uint64_t __calc_target_rate(struct cached_dev *dc)
@@ -79,6 +94,7 @@ static void __update_writeback_rate(struct cached_dev *dc)
 		div_s64(error, dc->writeback_rate_p_term_inverse);  //
 	int64_t integral_scaled;
 	uint32_t new_rate;
+	uint32_t bdev_share;
 
 	if ((error < 0 && dc->writeback_rate_integral > 0) ||
 	    (error > 0 && time_before64(local_clock(),
@@ -95,6 +111,15 @@ static void __update_writeback_rate(struct cached_dev *dc)
 		 */
 		dc->writeback_rate_integral += error *  //根据当前缓存数据量与目标数据量的差值，计算出integral，用于调整writeback速率
 			dc->writeback_rate_update_seconds;  //默认为5秒
+	}
+
+	if (error < 0 && dc->writeback_early) { //开启早期writeback
+	    bdev_share =
+		div64_u64(bdev_sectors(dc->bdev) << WRITEBACK_SHARE_SHIFT, //WRITEBACK_SHARE_SHIFT表示以16K对齐
+				c->cached_dev_sectors); //当前后端设备的扇区数 / 所有后端设备的扇区数的和
+		if (bdev_share < 1)
+		    bdev_share = 1;
+        dc->writeback_rate_minimum = (bdev_share * cached_dev_wb_rate[dc->type]) >> WRITEBACK_SHARE_SHIFT;
 	}
 
 	integral_scaled = div_s64(dc->writeback_rate_integral,
@@ -776,6 +801,7 @@ void bch_cached_dev_writeback_init(struct cached_dev *dc)
     dc->writeback_idle_duration_msecs = BCH_IDLE_DURATION_MSECS;
 	dc->writeback_rate_minimum	= 8;
 	dc->writeback_cutoff_sync   = false;
+	dc->writeback_early         = true;
 
 	dc->writeback_rate_update_seconds = WRITEBACK_RATE_UPDATE_SECS_DEFAULT;
 	dc->writeback_rate_p_term_inverse = 40;
