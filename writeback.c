@@ -115,6 +115,9 @@ static void __update_writeback_rate(struct cached_dev *dc)
 		if (bdev_share < 1)
 		    bdev_share = 1;
         dc->writeback_rate_minimum = (bdev_share * cached_dev_wb_rate[dc->type]) >> WRITEBACK_SHARE_SHIFT;
+        if (dc->writeback_rate_minimum < 8) {
+            dc->writeback_rate_minimum = 8;
+        }
 	}
 
 	integral_scaled = div_s64(dc->writeback_rate_integral,
