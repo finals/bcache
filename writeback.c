@@ -639,6 +639,12 @@ static bool refill_dirty(struct cached_dev *dc)
 	return bkey_cmp(&buf->last_scanned, &start_pos) >= 0;
 }
 
+static void trigger_bucket_gc(struct cache_set *c)
+{
+    atomic_set(&c->sectors_to_gc, -1);
+	wake_up_gc(c);
+}
+
 static int bch_writeback_thread(void *arg)
 {
 	struct cached_dev *dc = arg;
@@ -692,6 +698,9 @@ static int bch_writeback_thread(void *arg)
                 up_write(&dc->writeback_lock);
 				break;
              }
+
+            //回写完成，触发gc回收未使用bucket
+			trigger_bucket_gc(c);
 		}
 
 		up_write(&dc->writeback_lock);
@@ -705,8 +714,10 @@ static int bch_writeback_thread(void *arg)
 			while (delay &&
 			       !kthread_should_stop() &&
 			       !test_bit(CACHE_SET_IO_DISABLE, &c->flags) &&
-			       !test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags))
+			       !test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags)) {
+			    trigger_bucket_gc(c); //writeback线程睡眠之前，触发gc回收bucket
 				delay = schedule_timeout_interruptible(delay);
+			}
 			bch_ratelimit_reset(&dc->writeback_rate);
 		}
 	}
