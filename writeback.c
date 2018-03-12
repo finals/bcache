@@ -17,20 +17,14 @@
 #include <linux/sched/clock.h>
 #include <trace/events/bcache.h>
 
-#define SATA_HDD_WB_RATE 204800  //以扇区为单位,100MB/s
-#define SAS_HDD_WB_RATE  262144  //128MB/s
-#define SATA_SSD_WB_RATE 524288  //256MB/s
-#define SAS_SSD_WB_RATE  524288  //256MB/s
-#define PCIE_SSD_WB_RATE 1048576 //512MB/s
-
 //回写速率，数据下标对应cached_dev_type
-static const unsigned const cached_dev_wb_rate = {
+static const unsigned const cached_dev_wb_rate[] = {
     204800,   //SATA HDD 100MB/s
     262144,   //SAS  HDD 128MB/s
     524288,   //SATA SSD 256MB/s
     524288,   //SAS  SSD 256MB/s
     1048576,  //PCIE SSD 512MB/s
-}
+};
 
 /* Rate limiting */
 
@@ -95,6 +89,7 @@ static void __update_writeback_rate(struct cached_dev *dc)
 	int64_t integral_scaled;
 	uint32_t new_rate;
 	uint32_t bdev_share;
+	struct cache_set *c = dc->disk.c;
 
 	if ((error < 0 && dc->writeback_rate_integral > 0) ||
 	    (error > 0 && time_before64(local_clock(),
