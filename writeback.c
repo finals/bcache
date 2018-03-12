@@ -664,9 +664,22 @@ static bool refill_dirty(struct cached_dev *dc)
 	return bkey_cmp(&buf->last_scanned, &start_pos) >= 0;
 }
 
-static void trigger_bucket_gc(struct cache_set *c)
+static void trigger_bucket_gc(struct cache_set *c, struct cached_dev *dc)
 {
+    uint64_t now = local_clock();
+    if (c->gc_stats.in_use < 50 && now - c->gc_stats.last_trigger_gc_time > 600 * NSEC_PER_SEC) {
+        goto trigger
+    } else if (c->gc_stats.in_use < 70 && now - c->gc_stats.last_trigger_gc_time > 300 * NSEC_PER_SEC) {
+        goto trigger
+    } else if (c->gc_stats.in_use < 95 && now - c->gc_stats.last_trigger_gc_time > 60 * NSEC_PER_SEC) {
+        goto trigger
+    }
+
+    //do nothing
+    return;
+trigger:
     atomic_set(&c->sectors_to_gc, -1);
+    c->gc_stats.last_trigger_gc_time = now;
 	wake_up_gc(c);
 }
 
