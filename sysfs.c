@@ -165,7 +165,7 @@ SHOW(__bch_cached_dev)
 	var_print(writeback_rate_p_term_inverse);
 	var_print(writeback_rate_minimum);
 
-	if (attr) == &sysfs_cached_dev_type {
+	if (attr == &sysfs_cached_dev_type) {
         switch(dc->type) {
         case CACHED_DEV_SATA_HDD:
         case CACHED_DEV_SAS_HDD:
