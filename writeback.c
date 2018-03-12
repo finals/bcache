@@ -738,7 +738,7 @@ static int bch_writeback_thread(void *arg)
              }
 
             //回写完成，触发gc回收未使用bucket
-			trigger_bucket_gc(c);
+			trigger_bucket_gc(c, dc);
 		}
 
 		up_write(&dc->writeback_lock);
@@ -749,7 +749,7 @@ static int bch_writeback_thread(void *arg)
 		if (searched_full_index) {
 			unsigned delay = dc->writeback_delay * HZ;
 			
-            trigger_bucket_gc(c); //writeback线程睡眠之前，触发gc回收bucket
+            trigger_bucket_gc(c, dc); //writeback线程睡眠之前，触发gc回收bucket
             
 			while (delay &&
 			       !kthread_should_stop() &&
