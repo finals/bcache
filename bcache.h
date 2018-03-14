@@ -622,6 +622,7 @@ struct cache_set {
 	 */
 	uint8_t			need_gc;
 	struct gc_stat		gc_stats;
+	uint64_t            gc_sleep_time;
 	size_t			nbuckets;
 	size_t			avail_nbuckets;
 
