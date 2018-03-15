@@ -333,6 +333,8 @@ static void write_dirty(struct closure *cl)
 		bio_set_dev(&io->bio, io->dc->bdev);
 		io->bio.bi_end_io	= dirty_endio;
 
+        dc->rate_limit.wb_io_count++;
+        dc->rate_limit.wb_data_count += bio_sectors(&io->bio);
 		/* I/O request sent to backing device */
 		closure_bio_submit(io->dc->disk.c, &io->bio, cl);
 	}
@@ -794,6 +796,9 @@ void bch_cached_dev_writeback_init(struct cached_dev *dc)
 	dc->writeback_rate_update_seconds = WRITEBACK_RATE_UPDATE_SECS_DEFAULT;
 	dc->writeback_rate_p_term_inverse = 40;
 	dc->writeback_rate_i_term_inverse = 10000;
+
+	dc->rate_limit.wb_io_count   = 0;
+	dc->rate_limit.wb_data_count = 0;
 
     WARN_ON(test_and_clear_bit(BCACHE_DEV_WB_RUNNING, &dc->disk.flags));
 	INIT_DELAYED_WORK(&dc->writeback_rate_update, update_writeback_rate);

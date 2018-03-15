@@ -102,6 +102,8 @@ rw_attribute(writeback_rate_p_term_inverse);
 rw_attribute(writeback_rate_minimum);
 rw_attribute(writeback_cutoff_sync);
 read_attribute(writeback_rate_debug);
+read_attribute(writeback_io_tick);
+read_attribute(writeback_data_tick);
 
 read_attribute(stripe_size);
 read_attribute(partial_stripes_expensive);
@@ -162,6 +164,8 @@ SHOW(__bch_cached_dev)
 	var_print(writeback_rate_i_term_inverse);
 	var_print(writeback_rate_p_term_inverse);
 	var_print(writeback_rate_minimum);
+	sysfs_printf(writeback_io_tick, "%llu", dc->rate_limit.wb_io_count);
+	sysfs_printf(writeback_data_tick, "%llu", dc->rate_limit.wb_data_count);
 
 	if (attr == &sysfs_writeback_rate_debug) {
 		char rate[20];
@@ -383,6 +387,8 @@ static struct attribute *bch_cached_dev_files[] = {
 	&sysfs_writeback_rate_i_term_inverse,
 	&sysfs_writeback_rate_p_term_inverse,
 	&sysfs_writeback_rate_debug,
+	&sysfs_writeback_io_tick,
+	&sysfs_writeback_data_tick,
 	&sysfs_errors,
 	&sysfs_io_error_limit,
 	&sysfs_io_disable,

@@ -295,6 +295,11 @@ enum stop_on_faliure {
     BCH_CACHED_DEV_STOP_MODE_MAX,
 };
 
+struct rate_limit_advisor {
+    uint64_t wb_io_count;
+    uint64_t wb_data_count;
+};
+
 struct cached_dev {
 	struct list_head	list;
 	struct bcache_device	disk;
@@ -398,6 +403,7 @@ struct cached_dev {
 	atomic_t		io_errors;
 	unsigned		error_limit;
 	unsigned		offline_seconds;
+	struct rate_limit_advisor rate_limit;
 };
 
 enum alloc_reserve {
