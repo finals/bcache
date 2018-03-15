@@ -165,7 +165,7 @@ SHOW(__bch_cached_dev)
 	var_print(writeback_rate_p_term_inverse);
 	var_print(writeback_rate_minimum);
 	sysfs_printf(writeback_io_tick, "%llu", dc->rate_limit.wb_io_count);
-	sysfs_printf(writeback_data_tick, "%llu", dc->rate_limit.wb_data_count);
+	sysfs_printf(writeback_data_tick, "%llu", dc->rate_limit.wb_data_count << 9);
 
 	if (attr == &sysfs_writeback_rate_debug) {
 		char rate[20];
