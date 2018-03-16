@@ -29,14 +29,6 @@ static const char * const error_actions[] = {
 	NULL
 };
 
-static const char * const cached_dev_type_strings[] = {
-    "SATA HDD",
-    "SAS HDD",
-    "SATA SSD",
-    "SAS SSD",
-    "PCIE SSD",
-};
-
 #define VERSION "5.4.2"
 
 write_attribute(attach);
