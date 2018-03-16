@@ -37,7 +37,7 @@ static const char * const cached_dev_type_strings[] = {
     "PCIE SSD",
 };
 
-#define VERSION "5.4.1"
+#define VERSION "5.4.2"
 
 write_attribute(attach);
 write_attribute(detach);
