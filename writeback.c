@@ -737,11 +737,11 @@ static int bch_writeback_thread(void *arg)
 			bch_ratelimit_reset(&dc->writeback_rate);
 		}
 	}
-
-	dc->writeback_thread = NULL;
+	
 	cached_dev_put(dc);
     wait_for_kthread_stop();
-
+    dc->writeback_thread = NULL;
+    
 	return 0;
 }
 
