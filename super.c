@@ -1001,11 +1001,13 @@ static void cached_dev_detach_finish(struct work_struct *w)
 	if (test_and_clear_bit(BCACHE_DEV_WB_RUNNING, &dc->disk.flags))
 		cancel_writeback_rate_update_dwork(dc);
 
-	pr_info("cached_dev_detach_finish writeback_thread: %p\n", dc->writeback_thread);
 	if (!IS_ERR_OR_NULL(dc->writeback_thread)) {
-	    pr_info("cached_dev_detach_finish kthread_stop writeback_thread: %p\n", dc->writeback_thread);
 		kthread_stop(dc->writeback_thread);
 		dc->writeback_thread = NULL;
+
+		if (dc->writeback_write_wq) {
+		    destroy_workqueue(dc->writeback_write_wq);
+	    }
 	}
 
 	memset(&dc->sb.set_uuid, 0, 16);
