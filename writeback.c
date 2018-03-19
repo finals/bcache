@@ -132,7 +132,7 @@ static void update_writeback_rate(struct work_struct *work)
 	 * check it here too.
 	 */
 	if (!test_bit(BCACHE_DEV_WB_RUNNING, &dc->disk.flags) || c == NULL ||
-	    test_bit(CACHE_SET_IO_DISABLE, &c->flags)) {
+	    test_bit(CACHE_SET_IO_DISABLE, &c->flags) || test_bit(CACHE_SET_STOPPING, &c->flags) ) {
 		clear_bit(BCACHE_DEV_RATE_DW_RUNNING, &dc->disk.flags);
 		/* paired with where BCACHE_DEV_RATE_DW_RUNNING is tested */
 		smp_mb();
