@@ -404,6 +404,7 @@ struct cached_dev {
 	unsigned		error_limit;
 	unsigned		offline_seconds;
 	struct rate_limit_advisor rate_limit;
+	uint64_t        io_bypass_count;
 };
 
 enum alloc_reserve {

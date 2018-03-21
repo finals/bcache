@@ -254,11 +254,11 @@ static void bch_data_insert_start(struct closure *cl)
 		bch_keylist_push(&op->insert_keys);
 
 		bio_set_op_attrs(n, REQ_OP_WRITE, 0);
-		bch_submit_bbio(n, op->c, k, 0);
+		bch_submit_bbio(n, op->c, k, 0); //将bio提交到缓存设备
 	} while (n != bio);
 
 	op->insert_data_done = true;
-	continue_at(cl, bch_data_insert_keys, op->wq);
+	continue_at(cl, bch_data_insert_keys, op->wq); //更新缓存设备中的bkey
 	return;
 err:
 	/* bch_alloc_sectors() blocks if s->writeback = true */
@@ -991,6 +991,7 @@ static void cached_dev_write(struct cached_dev *dc, struct search *s)
 	if (s->iop.bypass) {   //绕过缓存
 		s->iop.bio = s->orig_bio;
 		bio_get(s->iop.bio);
+		dc->io_bypass_count++;
 
 		if (bio_op(bio) == REQ_OP_DISCARD &&
 		    !blk_queue_discard(bdev_get_queue(dc->bdev)))
@@ -1131,7 +1132,7 @@ static blk_qc_t cached_dev_make_request(struct request_queue *q,
     if (c) {
         c->last_request_time = local_clock();
     }
-	bio_set_dev(bio, dc->bdev);
+	bio_set_dev(bio, dc->bdev); //设置bio的目标设备为后端设备
 	bio->bi_iter.bi_sector += dc->sb.data_offset;
 
 	if (cached_dev_get(dc)) {

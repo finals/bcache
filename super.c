@@ -1273,6 +1273,7 @@ static int cached_dev_init(struct cached_dev *dc, unsigned block_size)
     atomic_set(&dc->io_errors, 0);
 	dc->io_disable = false;
 	dc->error_limit = DEFAULT_CACHED_DEV_ERROR_LIMIT;
+	dc->io_bypass_count = 0;
 
 	bch_cached_dev_request_init(dc);   //注册request queue的回调
 	bch_cached_dev_writeback_init(dc); //初始化writeback模块

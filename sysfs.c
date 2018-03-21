@@ -93,6 +93,7 @@ rw_attribute(writeback_rate_i_term_inverse);
 rw_attribute(writeback_rate_p_term_inverse);
 rw_attribute(writeback_rate_minimum);
 rw_attribute(writeback_cutoff_sync);
+rw_attribute(io_bypass_count);
 read_attribute(writeback_rate_debug);
 read_attribute(writeback_io_tick);
 read_attribute(writeback_data_tick);
@@ -148,6 +149,7 @@ SHOW(__bch_cached_dev)
 	var_print(writeback_percent);
     var_print(writeback_idle_duration_msecs);
     var_printf(writeback_cutoff_sync, "%i");
+    var_print(io_bypass_count);
 	sysfs_hprint(writeback_rate,	dc->writeback_rate.rate << 9);
 	sysfs_hprint(io_errors, 	atomic_read(&dc->io_errors));
 	sysfs_printf(io_error_limit,	"%i", dc->error_limit);
@@ -252,6 +254,10 @@ STORE(__cached_dev)
 	d_strtoul_nonzero(writeback_rate_p_term_inverse);
 
     sysfs_strtoul_clamp(io_error_limit, dc->error_limit, 0, INT_MAX);
+
+    if (attr == &sysfs_io_bypass_count) {
+        dc->io_bypass_count = 0;
+    }
 
 	if (attr == &sysfs_io_disable) {
 		int v = strtoul_or_return(buf);
@@ -396,6 +402,7 @@ static struct attribute *bch_cached_dev_files[] = {
 	&sysfs_state,
 	&sysfs_label,
 	&sysfs_readahead,
+	&sysfs_io_bypass_count,
 #ifdef CONFIG_BCACHE_DEBUG
 	&sysfs_verify,
 	&sysfs_bypass_torture_test,
