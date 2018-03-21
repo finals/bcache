@@ -646,9 +646,11 @@ static void trigger_bucket_gc(struct cache_set *c, struct cached_dev *dc)
     uint64_t now = local_clock();
     if (c->gc_stats.in_use < 50 && now - c->gc_stats.last_trigger_gc_time > 600 * NSEC_PER_SEC) {
         goto trigger;
-    } else if (c->gc_stats.in_use < 70 && now - c->gc_stats.last_trigger_gc_time > 300 * NSEC_PER_SEC) {
+    }
+    if (c->gc_stats.in_use >= 50 && c->gc_stats.in_use < 70 && now - c->gc_stats.last_trigger_gc_time > 300 * NSEC_PER_SEC) {
         goto trigger;
-    } else if (now - c->gc_stats.last_trigger_gc_time > 60 * NSEC_PER_SEC) {
+    }
+    if (c->gc_stats.in_use >= 70 && now - c->gc_stats.last_trigger_gc_time > 60 * NSEC_PER_SEC) {
         goto trigger;
     }
     
