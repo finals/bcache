@@ -691,10 +691,18 @@ static unsigned long bch_mca_scan(struct shrinker *shrink,
 	nr /= c->btree_pages;
 	nr = min_t(unsigned long, nr, mca_can_free(c));
 
+	/* 1) nr: the number of btree nodes needs to scan, which will decrease after
+     *       we scan a btree node, and should not be less than 0;
+     * 2) i: the number of btree nodes have scanned, includes both
+     *       btree_cache_freeable and btree_cache, which should not be bigger than
+     *        btree_cache_used;
+     * 3) freed: the number of btree nodes have freed.
+	 */
 	i = 0;
+	btree_cache_used = c->btree_cache_used;
 	list_for_each_entry_safe(b, t, &c->btree_cache_freeable, list) {
-		if (freed >= nr)
-			break;
+		if (nr <= 0)
+			goto out;
 
 		if (++i > 3 &&
 		    !mca_reap(b, 0, false)) {
@@ -702,10 +710,10 @@ static unsigned long bch_mca_scan(struct shrinker *shrink,
 			rw_unlock(true, b);
 			freed++;
 		}
+		nr--;
 	}
 
-	btree_cache_used = c->btree_cache_used;
-	for (i = 0; freed < nr && i < btree_cache_used; i++) {
+    for (;  (nr--) && i < btree_cache_used; i++) {
 		if (list_empty(&c->btree_cache))
 			goto out;
 
