@@ -1005,10 +1005,10 @@ static void cached_dev_detach_finish(struct work_struct *w)
 		kthread_stop(dc->writeback_thread);
 		dc->writeback_thread = NULL;
 
-		if (dc->writeback_write_wq != NULL) {
-		    destroy_workqueue(dc->writeback_write_wq);
-		    dc->writeback_write_wq = NULL;
-	    }
+		//if (dc->writeback_write_wq) {
+		//    destroy_workqueue(dc->writeback_write_wq);
+		//    dc->writeback_write_wq = NULL;
+	    //}
 	}
 
 	memset(&dc->sb.set_uuid, 0, 16);
