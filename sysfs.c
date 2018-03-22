@@ -93,6 +93,7 @@ rw_attribute(writeback_rate_i_term_inverse);
 rw_attribute(writeback_rate_p_term_inverse);
 rw_attribute(writeback_rate_minimum);
 rw_attribute(writeback_cutoff_sync);
+rw_attribute(writeback_unconditional);
 rw_attribute(io_bypass_count);
 read_attribute(writeback_rate_debug);
 read_attribute(writeback_io_tick);
@@ -149,6 +150,7 @@ SHOW(__bch_cached_dev)
 	var_print(writeback_percent);
     var_print(writeback_idle_duration_msecs);
     var_printf(writeback_cutoff_sync, "%i");
+    var_printf(writeback_unconditional, "%i");
     var_print(io_bypass_count);
 	sysfs_hprint(writeback_rate,	dc->writeback_rate.rate << 9);
 	sysfs_hprint(io_errors, 	atomic_read(&dc->io_errors));
@@ -263,6 +265,17 @@ STORE(__cached_dev)
 		int v = strtoul_or_return(buf);
 
 		dc->io_disable = v ? 1 : 0;
+	}
+
+	if (attr == &sysfs_writeback_unconditional) {
+        int v = strtoul_or_return(buf);
+
+        if (v == 1) {
+            dc->writeback_unconditional = true;
+        } 
+        if (v == 0) {
+            dc->writeback_unconditional = false;
+        }
 	}
 
 	d_strtoi_h(sequential_cutoff);
@@ -392,6 +405,7 @@ static struct attribute *bch_cached_dev_files[] = {
 	&sysfs_io_disable,
     &sysfs_writeback_idle_duration_msecs,
     &sysfs_writeback_cutoff_sync,
+    &sysfs_writeback_unconditional,
 	&sysfs_dirty_data,
 	&sysfs_stripe_size,
 	&sysfs_version,

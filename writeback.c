@@ -145,6 +145,11 @@ static void update_writeback_rate(struct work_struct *work)
         goto schedule_delay;
     }
 
+    if (dc->writeback_unconditional) {
+        dc->writeback_rate.rate = INT_MAX;  //无条件writeback，以最大速率向下刷数据
+        goto schedule_delay;
+    }
+
     now = local_clock();
     if (c->last_request_time) {
         duration = now - c->last_request_time;  //距离上一次请求的时间间隔
@@ -794,6 +799,7 @@ void bch_cached_dev_writeback_init(struct cached_dev *dc)
     dc->writeback_idle_duration_msecs = BCH_IDLE_DURATION_MSECS;
 	dc->writeback_rate_minimum	= 8;
 	dc->writeback_cutoff_sync   = false;
+	dc->writeback_unconditional = false;
 
 	dc->writeback_rate_update_seconds = WRITEBACK_RATE_UPDATE_SECS_DEFAULT;
 	dc->writeback_rate_p_term_inverse = 40;
