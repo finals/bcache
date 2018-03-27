@@ -382,6 +382,7 @@ struct cached_dev {
 	unsigned		writeback_running:1;
 	unsigned        writeback_cutoff_sync:1;
 	unsigned        writeback_unconditional:1;
+	unsigned        writeback_supress:1;
 	unsigned char	writeback_percent;
 	unsigned		writeback_delay;
 
