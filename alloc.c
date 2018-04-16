@@ -325,7 +325,8 @@ static int bch_allocator_thread(void *arg)
 		 * possibly issue discards to them, then we add the bucket to
 		 * the free list:
 		 */
-		while (!fifo_empty(&ca->free_inc)) { //检查后备free_inc是否为空
+		while (!fifo_empty(&ca->free_inc) && //检查后备free_inc是否为空
+		    ca->prepare_gc != GC_PREPARING) { 
 			long bucket;
 
 			fifo_pop(&ca->free_inc, bucket); //pop一个后备bucket
@@ -353,6 +354,14 @@ retry_invalidate:
 		allocator_wait(ca, ca->set->gc_mark_valid &&
 			       !ca->invalidate_needs_gc); //同时只允许一个gc工作，如果有其他gc工作，则等待gc完成
 		invalidate_buckets(ca); //将bucket置为invalidate，将触发gc完成缓存替换
+
+        /*
+		 * Let GC continue
+		 */
+		if (ca->prepare_gc == GC_PREPARING) {
+			ca->prepare_gc = GC_PREPARED;
+			wake_up_gc(ca->set);
+		}
 
 		/*
 		 * Now, we write their new gens to disk so we can start writing
@@ -527,7 +536,7 @@ struct open_bucket {
 
 /*
  * We keep multiple buckets open for writes, and try to segregate different
- *write streams for better cache utilization: first we try to segregate flash
+ * write streams for better cache utilization: first we try to segregate flash
  * only volume write streams from cached devices, secondly we look for a bucket
  * where the last write to it was sequential with the current write, and
  * failing that we look for a bucket that was last used by the same task.

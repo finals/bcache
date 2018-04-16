@@ -466,6 +466,8 @@ struct cache {
 	 * cpu
 	 */
 	unsigned		invalidate_needs_gc;
+	/* used to notify allocator to prepare GC*/
+	unsigned int		prepare_gc;
 
 	bool			discard; /* Get rid of? */
 

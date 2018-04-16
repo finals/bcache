@@ -102,6 +102,10 @@
 #include "bset.h"
 #include "debug.h"
 
+#define GC_PREPARE_NONE		0
+#define GC_PREPARING		1
+#define GC_PREPARED		    2
+
 struct btree_write {
 	atomic_t		*journal;
 

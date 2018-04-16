@@ -1818,19 +1818,71 @@ static void bch_btree_gc(struct cache_set *c)
 	bch_moving_gc(c); //根据标志位，完成实际gc工作
 }
 
+unsigned int get_cache_gc_prepare_status(struct cache_set *c)
+{
+	struct cache *ca;
+	unsigned int i;
+	unsigned int status = GC_PREPARE_NONE;
+
+	for_each_cache(ca, c, i) {
+		if (ca->prepare_gc == GC_PREPARING)
+			return GC_PREPARING;
+
+		status = ca->prepare_gc;
+	}
+
+	return status;
+}
+
+static void set_cache_gc_prepare_status(struct cache_set *c,
+					unsigned int status)
+{
+	struct cache *ca;
+	unsigned int i;
+
+	for_each_cache(ca, c, i)
+		ca->prepare_gc = status;
+}
+
 static bool gc_should_run(struct cache_set *c)
 {
 	struct cache *ca;
 	unsigned i;
+	bool ret = false;
 
 	for_each_cache(ca, c, i)
 		if (ca->invalidate_needs_gc)
 			return true;
 
-	if (atomic_read(&c->sectors_to_gc) < 0)
-		return true;
-
-	return false;
+	if (atomic_read(&c->sectors_to_gc) < 0) {
+		unsigned int status;
+        mutex_lock(&c->bucket_lock);
+        status = get_cache_gc_prepare_status(c);
+        switch (status) {
+        case GC_PREPARE_NONE:
+            /*
+             * notify allocator thread to prepare for GC
+             */
+            set_cache_gc_prepare_status(c, GC_PREPARING);
+            break;
+        case GC_PREPARED:
+            /*
+             * alloc thread finished preparing,
+             * and continue to GC
+             */
+            set_cache_gc_prepare_status(c, GC_PREPARE_NONE);
+             ret = true;
+             break;
+        default:
+            /*
+             * waitting allocator finishing prepareing
+             */
+            break;
+        }
+        mutex_unlock(&c->bucket_lock);
+    }
+       
+    return ret;
 }
 
 static int bch_gc_thread(void *arg)
