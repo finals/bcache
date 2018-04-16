@@ -708,7 +708,7 @@ static void search_free(struct closure *cl)
 		bio_put(s->iop.bio);
 
     bio_complete(s);
-    atomic_dec(&s->d->c->io_inflight);
+    atomic_dec(&s->d->c->search_inflight);
     
 	closure_debug_destroy(cl);
 	mempool_free(s, s->d->c->search);
@@ -723,7 +723,7 @@ static inline struct search *search_alloc(struct bio *bio,
 
 	closure_init(&s->cl, NULL);
 	do_bio_hook(s, bio, request_endio);
-	atomic_inc(&d->c->io_inflight);
+	atomic_inc(&d->c->search_inflight);
 
 	s->orig_bio		= bio;
 	s->cache_miss		= NULL;

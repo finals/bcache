@@ -1622,7 +1622,7 @@ static int btree_gc_recurse(struct btree *b, struct btree_op *op,
 		memmove(r + 1, r, sizeof(r[0]) * (GC_MERGE_NODES - 1));
 		r->b = NULL;
 
-        if (atomic_read(&b->c->io_inflight) &&
+        if (atomic_read(&b->c->search_inflight) &&
 		    gc->nodes >= gc->nodes_pre + btree_gc_min_nodes(b->c)) {
 			gc->nodes_pre =  gc->nodes;
 			ret = -EAGAIN;
