@@ -989,7 +989,6 @@ static void cancel_writeback_rate_update_dwork(struct cached_dev *dc)
 static void cached_dev_detach_finish(struct work_struct *w)
 {
 	struct cached_dev *dc = container_of(w, struct cached_dev, detach);
-	char buf[BDEVNAME_SIZE];
 	struct closure cl;
 	closure_init_stack(&cl);
 
@@ -1015,7 +1014,7 @@ static void cached_dev_detach_finish(struct work_struct *w)
 
 	mutex_unlock(&bch_register_lock);
 
-	pr_info("Caching disabled for %s", bdevname(dc->bdev, buf));
+	pr_info("Caching disabled for %s", dc->backing_dev_name);
 
 	/* Drop ref we took in cached_dev_detach() */
 	closure_put(&dc->disk.cl);
@@ -1048,29 +1047,26 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *s
 {
 	uint32_t rtime = cpu_to_le32(get_seconds());
 	struct uuid_entry *u;
-	char buf[BDEVNAME_SIZE];
 	struct cached_dev *exist_dc, *t;
-
-	bdevname(dc->bdev, buf);
 
 	if ((set_uuid && memcmp(set_uuid, c->sb.set_uuid, 16)) ||
 	    (!set_uuid && memcmp(dc->sb.set_uuid, c->sb.set_uuid, 16)))
 		return -ENOENT;
 
 	if (dc->disk.c) {
-		pr_err("Can't attach %s: already attached", buf);
+		pr_err("Can't attach %s: already attached", dc->backing_dev_name);
 		return -EINVAL;
 	}
 
 	if (test_bit(CACHE_SET_STOPPING, &c->flags)) {
-		pr_err("Can't attach %s: shutting down", buf);
+		pr_err("Can't attach %s: shutting down", dc->backing_dev_name);
 		return -EINVAL;
 	}
 
 	if (dc->sb.block_size < c->sb.block_size) {
 		/* Will die */
 		pr_err("Couldn't attach %s: block size less than set's block size",
-		       buf);
+		       dc->backing_dev_name);
 		return -EINVAL;
 	}
 
@@ -1078,7 +1074,7 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *s
 	list_for_each_entry_safe(exist_dc, t, &c->cached_devs, list) {
 		if (!memcmp(dc->sb.uuid, exist_dc->sb.uuid, 16)) {
 			pr_err("Tried to attach %s but duplicate UUID already attached",
-				buf);
+				dc->backing_dev_name);
 
 			return -EINVAL;
 		}
@@ -1096,13 +1092,13 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *s
 
 	if (!u) {
 		if (BDEV_STATE(&dc->sb) == BDEV_STATE_DIRTY) {
-			pr_err("Couldn't find uuid for %s in set", buf);
+			pr_err("Couldn't find uuid for %s in set", dc->backing_dev_name);
 			return -ENOENT;
 		}
 
 		u = uuid_find_empty(c);
 		if (!u) {
-			pr_err("Not caching %s, no room for UUID", buf);
+			pr_err("Not caching %s, no room for UUID", dc->backing_dev_name);
 			return -EINVAL;
 		}
 	}
@@ -1161,7 +1157,7 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *s
 	up_write(&dc->writeback_lock);
 
 	pr_info("Caching %s as %s on set %pU",
-		bdevname(dc->bdev, buf), dc->disk.disk->disk_name,
+		dc->backing_dev_name, dc->disk.disk->disk_name,
 		dc->disk.c->sb.set_uuid);
 	return 0;
 }
@@ -1277,7 +1273,6 @@ static void register_bdev(struct cache_sb *sb, struct page *sb_page,
 				 struct block_device *bdev,
 				 struct cached_dev *dc)
 {
-	char name[BDEVNAME_SIZE];
 	const char *err = "cannot allocate memory";
 	struct cache_set *c;
 
@@ -1299,7 +1294,8 @@ static void register_bdev(struct cache_sb *sb, struct page *sb_page,
 	if (bch_cache_accounting_add_kobjs(&dc->accounting, &dc->disk.kobj))
 		goto err;
 
-	pr_info("registered backing device %s", bdevname(bdev, name));
+    bdevname(bdev, dc->backing_dev_name);
+	pr_info("registered backing device %s", dc->backing_dev_name);
 
 	list_add(&dc->list, &uncached_devices);
 	list_for_each_entry(c, &bch_cache_sets, list)
@@ -1311,7 +1307,7 @@ static void register_bdev(struct cache_sb *sb, struct page *sb_page,
 
 	return;
 err:
-	pr_notice("error %s: %s", bdevname(bdev, name), err);
+	pr_notice("error %s: %s", dc->backing_dev_name, err);
 	bcache_device_stop(&dc->disk);
 }
 
@@ -1419,8 +1415,6 @@ int bch_flash_dev_create(struct cache_set *c, uint64_t size)
 
 bool bch_cached_dev_error(struct cached_dev *dc)
 {
-	char name[BDEVNAME_SIZE];
-
 	if (!dc || test_bit(BCACHE_DEV_CLOSING, &dc->disk.flags))
 		return false;
 
@@ -1429,7 +1423,7 @@ bool bch_cached_dev_error(struct cached_dev *dc)
 	smp_mb();
 
 	pr_err("bcache: stop %s: too many IO errors on backing device %s\n",
-		dc->disk.name, bdevname(dc->bdev, name));
+		dc->disk.name, dc->backing_dev_name);
 
 	bcache_device_stop(&dc->disk);
 	return true;
@@ -2061,11 +2055,10 @@ static int cache_alloc(struct cache *ca)
 static int register_cache(struct cache_sb *sb, struct page *sb_page,
 				struct block_device *bdev, struct cache *ca)
 {
-	char name[BDEVNAME_SIZE];
 	const char *err = NULL; /* must be set for any error case */
 	int ret = 0;
 
-	bdevname(bdev, name);
+	bdevname(bdev, ca->cache_dev_name);
 
 	memcpy(&ca->sb, sb, sizeof(struct cache_sb));
 	ca->bdev = bdev;
@@ -2103,14 +2096,14 @@ static int register_cache(struct cache_sb *sb, struct page *sb_page,
 		goto out;
 	}
 
-	pr_info("registered cache device %s", name);
+	pr_info("registered cache device %s", ca->cache_dev_name);
 
 out:
 	kobject_put(&ca->kobj);
 
 err:
 	if (err)
-		pr_notice("error %s: %s", name, err);
+		pr_notice("error %s: %s", ca->cache_dev_name, err);
 
 	return ret;
 }
