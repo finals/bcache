@@ -1440,7 +1440,7 @@ bool bch_cached_dev_error(struct cached_dev *dc)
 	 */
 	c = dc->disk.c;
 	if (c && test_and_set_bit(CACHE_SET_IO_DISABLE, &c->flags))
-		pr_warn("CACHE_SET_IO_DISABLE already set");
+		pr_info("CACHE_SET_IO_DISABLE already set");
 
 	bcache_device_stop(&dc->disk);
 	return true;
@@ -1458,7 +1458,7 @@ bool bch_cache_set_error(struct cache_set *c, const char *fmt, ...)
 		return false;
 
     if (test_and_set_bit(CACHE_SET_IO_DISABLE, &c->flags))
-		pr_warn("bcache: CACHE_SET_IO_DISABLE already set");
+		pr_info("bcache: CACHE_SET_IO_DISABLE already set");
 
 	/* XXX: we can be called from atomic context
 	acquire_console_sem();
