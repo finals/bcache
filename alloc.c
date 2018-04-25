@@ -386,6 +386,7 @@ retry_invalidate:
 			bch_prio_write(ca); //更新存储在磁盘中的bucket的gen信息
 		}
 	}
+	wait_for_kthread_stop();
 }
 
 /* Allocation */
