@@ -29,7 +29,7 @@ static const char * const error_actions[] = {
 	NULL
 };
 
-#define VERSION "5.4.3"
+#define VERSION "5.5"
 
 write_attribute(attach);
 write_attribute(detach);
