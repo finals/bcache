@@ -1415,7 +1415,7 @@ int bch_flash_dev_create(struct cache_set *c, uint64_t size)
 
 bool bch_cached_dev_error(struct cached_dev *dc)
 {
-    struct cache_set *c;
+    //struct cache_set *c;
     
 	if (!dc || test_bit(BCACHE_DEV_CLOSING, &dc->disk.flags))
 		return false;
@@ -1438,9 +1438,9 @@ bool bch_cached_dev_error(struct cached_dev *dc)
 	 * If c is NULL, that means the bcache device is not attached
 	 * to any cache set, then no CACHE_SET_IO_DISABLE bit to set.
 	 */
-	c = dc->disk.c;
-	if (c && test_and_set_bit(CACHE_SET_IO_DISABLE, &c->flags))
-		pr_info("CACHE_SET_IO_DISABLE already set");
+	//c = dc->disk.c;
+	//if (c && test_and_set_bit(CACHE_SET_IO_DISABLE, &c->flags))
+	//	pr_info("CACHE_SET_IO_DISABLE already set");
 
 	bcache_device_stop(&dc->disk);
 	return true;
