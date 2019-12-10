@@ -64,12 +64,12 @@ static const char *read_super(struct cache_sb *sb, struct block_device *bdev,
 {
 	const char *err;
 	struct cache_sb *s;
-	struct buffer_head *bh = __bread(bdev, 1, SB_SIZE);
+	struct buffer_head *bh = __bread(bdev, 1, SB_SIZE); //通过块缓存接口读取块设备前4k数据
 	unsigned int i;
 
 	if (!bh)
 		return "IO error";
-
+    //解析超级块数据
 	s = (struct cache_sb *) bh->b_data;
 
 	sb->offset		= le64_to_cpu(s->offset);
@@ -83,10 +83,10 @@ static const char *read_super(struct cache_sb *sb, struct block_device *bdev,
 	sb->flags		= le64_to_cpu(s->flags);
 	sb->seq			= le64_to_cpu(s->seq);
 	sb->last_mount		= le32_to_cpu(s->last_mount);
-	sb->first_bucket	= le16_to_cpu(s->first_bucket);
+	sb->first_bucket	= le16_to_cpu(s->first_bucket); //默认值1
 	sb->keys		= le16_to_cpu(s->keys);
 
-	for (i = 0; i < SB_JOURNAL_BUCKETS; i++)
+	for (i = 0; i < SB_JOURNAL_BUCKETS; i++) //journal所在的磁盘空间(256个bucket, 默认bucket_size为512k)
 		sb->d[i] = le64_to_cpu(s->d[i]);
 
 	pr_debug("read sb version %llu, flags %llu, seq %llu, journal size %u",
@@ -111,14 +111,14 @@ static const char *read_super(struct cache_sb *sb, struct block_device *bdev,
 	if (bch_is_zero(sb->uuid, 16))
 		goto err;
 
-	sb->block_size	= le16_to_cpu(s->block_size);
+	sb->block_size	= le16_to_cpu(s->block_size); //默认值1
 
 	err = "Superblock block size smaller than device block size";
 	if (sb->block_size << 9 < bdev_logical_block_size(bdev))
 		goto err;
 
-	switch (sb->version) {
-	case BCACHE_SB_VERSION_BDEV:
+	switch (sb->version) {    //根据version判断设备类型
+	case BCACHE_SB_VERSION_BDEV:   //后端设备
 		sb->data_offset	= BDEV_DATA_START_DEFAULT;
 		break;
 	case BCACHE_SB_VERSION_BDEV_WITH_OFFSET:
@@ -2360,7 +2360,7 @@ static ssize_t register_bcache(struct kobject *k, struct kobj_attribute *attr,
 	smp_mb();
 	if (bcache_is_reboot)
 		return -EBUSY;
-
+	//参数buffer传进来是块设备文件路径：/dev/sdc
 	path = kstrndup(buffer, size, GFP_KERNEL);
 	if (!path)
 		goto err;
@@ -2370,7 +2370,7 @@ static ssize_t register_bcache(struct kobject *k, struct kobj_attribute *attr,
 		goto err;
 
 	err = "failed to open device";
-	bdev = blkdev_get_by_path(strim(path),
+	bdev = blkdev_get_by_path(strim(path),          //根据路径名字找到block_device
 				  FMODE_READ|FMODE_WRITE|FMODE_EXCL,
 				  sb);
 	if (IS_ERR(bdev)) {
@@ -2394,31 +2394,31 @@ static ssize_t register_bcache(struct kobject *k, struct kobj_attribute *attr,
 	if (set_blocksize(bdev, 4096))
 		goto err_close;
 
-	err = read_super(sb, bdev, &sb_page);
+	err = read_super(sb, bdev, &sb_page);  //读取块设备超级块
 	if (err)
 		goto err_close;
 
 	err = "failed to register device";
-	if (SB_IS_BDEV(sb)) {
+	if (SB_IS_BDEV(sb)) {   //根据块设备超级块内容，判断是否为后端设备
 		struct cached_dev *dc = kzalloc(sizeof(*dc), GFP_KERNEL);
 
 		if (!dc)
 			goto err_close;
 
 		mutex_lock(&bch_register_lock);
-		ret = register_bdev(sb, sb_page, bdev, dc);
+		ret = register_bdev(sb, sb_page, bdev, dc); //注册后端设备
 		mutex_unlock(&bch_register_lock);
 		/* blkdev_put() will be called in cached_dev_free() */
 		if (ret < 0)
 			goto err;
-	} else {
+	} else { //缓存设备
 		struct cache *ca = kzalloc(sizeof(*ca), GFP_KERNEL);
 
 		if (!ca)
 			goto err_close;
 
 		/* blkdev_put() will be called in bch_cache_release() */
-		if (register_cache(sb, sb_page, bdev, ca) != 0)
+		if (register_cache(sb, sb_page, bdev, ca) != 0)  //注册缓存设备
 			goto err;
 	}
 quiet_out:
