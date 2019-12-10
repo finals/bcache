@@ -128,10 +128,10 @@ enum closure_state {
 	 * annotate where references are being transferred.
 	 */
 
-	CLOSURE_BITS_START	= (1U << 27),
-	CLOSURE_DESTRUCTOR	= (1U << 27),
-	CLOSURE_WAITING		= (1U << 29),
-	CLOSURE_RUNNING		= (1U << 31),
+	CLOSURE_BITS_START	= (1U << 26),
+	CLOSURE_DESTRUCTOR	= (1U << 26),
+	CLOSURE_WAITING		= (1U << 28),
+	CLOSURE_RUNNING		= (1U << 30),
 };
 
 #define CLOSURE_GUARD_MASK					\
@@ -139,7 +139,7 @@ enum closure_state {
 
 #define CLOSURE_REMAINING_MASK		(CLOSURE_BITS_START - 1)
 #define CLOSURE_REMAINING_INITIALIZER	(1|CLOSURE_RUNNING)
-//使用引用计数来管理回调或对象析构的机制
+
 struct closure {
 	union {
 		struct {
@@ -159,7 +159,7 @@ struct closure {
 #define CLOSURE_MAGIC_DEAD	0xc054dead
 #define CLOSURE_MAGIC_ALIVE	0xc054a11e
 
-	unsigned		magic;
+	unsigned int		magic;
 	struct list_head	all;
 	unsigned long		ip;
 	unsigned long		waiting_on;
@@ -186,13 +186,13 @@ static inline void closure_sync(struct closure *cl)
 
 #ifdef CONFIG_BCACHE_CLOSURES_DEBUG
 
-int closure_debug_init(void);
+void closure_debug_init(void);
 void closure_debug_create(struct closure *cl);
 void closure_debug_destroy(struct closure *cl);
 
 #else
 
-static inline int closure_debug_init(void) { return 0; }
+static inline void closure_debug_init(void) {}
 static inline void closure_debug_create(struct closure *cl) {}
 static inline void closure_debug_destroy(struct closure *cl) {}
 
@@ -289,10 +289,12 @@ static inline void closure_init_stack(struct closure *cl)
 }
 
 /**
- * closure_wake_up - wake up all closures on a wait list.
+ * closure_wake_up - wake up all closures on a wait list,
+ *		     with memory barrier
  */
 static inline void closure_wake_up(struct closure_waitlist *list)
 {
+	/* Memory barrier for the wait list */
 	smp_mb();
 	__closure_wake_up(list);
 }
@@ -343,7 +345,8 @@ do {									\
 } while (0)
 
 /**
- * closure_return - finish execution of a closure, with destructor
+ * closure_return_with_destructor - finish execution of a closure,
+ *				    with destructor
  *
  * Works like closure_return(), except @destructor will be called when all
  * outstanding refs on @cl have been dropped; @destructor may be used to safely

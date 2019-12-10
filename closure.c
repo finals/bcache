@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Asynchronous refcounty things
  *
@@ -104,14 +105,20 @@ struct closure_syncer {
 
 static void closure_sync_fn(struct closure *cl)
 {
-    cl->s->done = 1;
-	wake_up_process(cl->s->task);
+	struct closure_syncer *s = cl->s;
+	struct task_struct *p;
+
+	rcu_read_lock();
+	p = READ_ONCE(s->task);
+	s->done = 1;
+	wake_up_process(p);
+	rcu_read_unlock();
 }
 
 void __sched __closure_sync(struct closure *cl)
 {
 	struct closure_syncer s = { .task = current };
- 
+
 	cl->s = &s;
 	continue_at(cl, closure_sync_fn, NULL);
 
@@ -119,9 +126,8 @@ void __sched __closure_sync(struct closure *cl)
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		if (s.done)
 			break;
- 		schedule();
- 	}
- 
+		schedule();
+	}
 
 	__set_current_state(TASK_RUNNING);
 }
@@ -163,22 +169,23 @@ static struct dentry *closure_debug;
 static int debug_seq_show(struct seq_file *f, void *data)
 {
 	struct closure *cl;
+
 	spin_lock_irq(&closure_list_lock);
 
 	list_for_each_entry(cl, &closure_list, all) {
 		int r = atomic_read(&cl->remaining);
 
-		seq_printf(f, "%p: %pF -> %pf p %p r %i ",
+		seq_printf(f, "%p: %pS -> %pS p %p r %i ",
 			   cl, (void *) cl->ip, cl->fn, cl->parent,
 			   r & CLOSURE_REMAINING_MASK);
 
-	    seq_printf(f, "%s%s\n",
-			 test_bit(WORK_STRUCT_PENDING_BIT,
+		seq_printf(f, "%s%s\n",
+			   test_bit(WORK_STRUCT_PENDING_BIT,
 				    work_data_bits(&cl->work)) ? "Q" : "",
-			 r & CLOSURE_RUNNING	? "R" : "");
+			   r & CLOSURE_RUNNING	? "R" : "");
 
 		if (r & CLOSURE_WAITING)
-			seq_printf(f, " W %pF\n",
+			seq_printf(f, " W %pS\n",
 				   (void *) cl->waiting_on);
 
 		seq_printf(f, "\n");
@@ -200,13 +207,17 @@ static const struct file_operations debug_ops = {
 	.release	= single_release
 };
 
-int __init closure_debug_init(void)
+void  __init closure_debug_init(void)
 {
-	closure_debug = debugfs_create_file("closures",
-				0400, bcache_debug, NULL, &debug_ops);
-	return IS_ERR_OR_NULL(closure_debug);
+	if (!IS_ERR_OR_NULL(bcache_debug))
+		/*
+		 * it is unnecessary to check return value of
+		 * debugfs_create_file(), we should not care
+		 * about this.
+		 */
+		closure_debug = debugfs_create_file(
+			"closures", 0400, bcache_debug, NULL, &debug_ops);
 }
-
 #endif
 
 MODULE_AUTHOR("Kent Overstreet <koverstreet@google.com>");
