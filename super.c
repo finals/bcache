@@ -957,12 +957,12 @@ int bch_cached_dev_run(struct cached_dev *dc)
 		closure_sync(&cl);
 	}
 
-	add_disk(d->disk);
+	add_disk(d->disk);  //将bcache设备(/dev/bcache0)添加到系统
 	bd_link_disk_holder(dc->bdev, dc->disk.disk);
 	/*
 	 * won't show up in the uevent file, use udevadm monitor -e instead
 	 * only class / kset properties are persistent
-	 */
+	 */ //发送uevent到用户态udevd，创建块设备文件/dev/bcache0
 	kobject_uevent_env(&disk_to_dev(d->disk)->kobj, KOBJ_CHANGE, env);
 	kfree(env[1]);
 	kfree(env[2]);
@@ -974,7 +974,7 @@ int bch_cached_dev_run(struct cached_dev *dc)
 		pr_err("Couldn't create bcache dev <-> disk sysfs symlinks");
 		return -ENOMEM;
 	}
-
+    /* 更新后端设备状态线程 */
 	dc->status_update_thread = kthread_run(cached_dev_status_update,
 					       dc, "bcache_status_update");
 	if (IS_ERR(dc->status_update_thread)) {
@@ -1084,9 +1084,9 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c,
 
 	if ((set_uuid && memcmp(set_uuid, c->sb.set_uuid, 16)) ||
 	    (!set_uuid && memcmp(dc->sb.set_uuid, c->sb.set_uuid, 16)))
-		return -ENOENT;
+		return -ENOENT; //后端设备与cache set的uuid不相同则立刻返回
 
-	if (dc->disk.c) {
+	if (dc->disk.c) { //已经attach完成
 		pr_err("Can't attach %s: already attached",
 		       dc->backing_dev_name);
 		return -EINVAL;
@@ -1166,7 +1166,7 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c,
 	}
 
 	bcache_device_attach(&dc->disk, c, u - c->uuids);
-	list_move(&dc->list, &c->cached_devs);
+	list_move(&dc->list, &c->cached_devs); //cached_dev链入cache_set的cached_devs字段中
 	calc_cached_dev_sectors(c);
 
 	/*
@@ -1178,7 +1178,7 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c,
 
 	/* Block writeback thread, but spawn it */
 	down_write(&dc->writeback_lock);
-	if (bch_cached_dev_writeback_start(dc)) {
+	if (bch_cached_dev_writeback_start(dc)) {  //启动writeback内核线程
 		up_write(&dc->writeback_lock);
 		pr_err("Couldn't start writeback facilities for %s",
 		       dc->disk.disk->disk_name);
@@ -1187,12 +1187,12 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c,
 
 	if (BDEV_STATE(&dc->sb) == BDEV_STATE_DIRTY) {
 		atomic_set(&dc->has_dirty, 1);
-		bch_writeback_queue(dc);
+		bch_writeback_queue(dc);  //唤醒writeback内核线程
 	}
 
-	bch_sectors_dirty_init(&dc->disk);
+	bch_sectors_dirty_init(&dc->disk); //计算dirty扇区的数量
 
-	ret = bch_cached_dev_run(dc);
+	ret = bch_cached_dev_run(dc); //使能后端设备
 	if (ret && (ret != -EBUSY)) {
 		up_write(&dc->writeback_lock);
 		/*
@@ -1278,7 +1278,7 @@ static int cached_dev_init(struct cached_dev *dc, unsigned int block_size)
 {
 	int ret;
 	struct io *io;
-	struct request_queue *q = bdev_get_queue(dc->bdev);
+	struct request_queue *q = bdev_get_queue(dc->bdev); //获取真实后端块设备的请求队列
 
 	__module_get(THIS_MODULE);
 	INIT_LIST_HEAD(&dc->list);
@@ -1289,10 +1289,10 @@ static int cached_dev_init(struct cached_dev *dc, unsigned int block_size)
 	sema_init(&dc->sb_write_mutex, 1);
 	INIT_LIST_HEAD(&dc->io_lru);
 	spin_lock_init(&dc->io_lock);
-	bch_cache_accounting_init(&dc->accounting, &dc->disk.cl);
+	bch_cache_accounting_init(&dc->accounting, &dc->disk.cl); //初始化统计数据
 
-	dc->sequential_cutoff		= 4 << 20;
-
+	dc->sequential_cutoff		= 4 << 20;  //连续IO数据量大于4M，则绕过缓存
+    //将最近128个io，挂载到后端设备的io_lru链表
 	for (io = dc->io; io < dc->io + RECENT_IO; io++) {
 		list_add(&io->lru, &dc->io_lru);
 		hlist_add_head(&io->hash, dc->io_hash + RECENT_IO);
@@ -1303,12 +1303,12 @@ static int cached_dev_init(struct cached_dev *dc, unsigned int block_size)
 	if (dc->disk.stripe_size)
 		dc->partial_stripes_expensive =
 			q->limits.raid_partial_stripes_expensive;
-
+    //bcacheX注册block_device, 并初始化gendisk
 	ret = bcache_device_init(&dc->disk, block_size,
 			 dc->bdev->bd_part->nr_sects - dc->sb.data_offset);
 	if (ret)
 		return ret;
-
+    //设置最大预读数量，以page为单位
 	dc->disk.disk->queue->backing_dev_info->ra_pages =
 		max(dc->disk.disk->queue->backing_dev_info->ra_pages,
 		    q->backing_dev_info->ra_pages);
@@ -1319,8 +1319,8 @@ static int cached_dev_init(struct cached_dev *dc, unsigned int block_size)
 	/* default to auto */
 	dc->stop_when_cache_set_failed = BCH_CACHED_DEV_STOP_AUTO;
 
-	bch_cached_dev_request_init(dc);
-	bch_cached_dev_writeback_init(dc);
+	bch_cached_dev_request_init(dc);    //注册request queue的处理函数
+	bch_cached_dev_writeback_init(dc);  //初始化writeback相关参数
 	return 0;
 }
 
@@ -1336,14 +1336,14 @@ static int register_bdev(struct cache_sb *sb, struct page *sb_page,
 
 	bdevname(bdev, dc->backing_dev_name);
 	memcpy(&dc->sb, sb, sizeof(struct cache_sb));
-	dc->bdev = bdev;
+	dc->bdev = bdev;  //bdev是真正的后端block_device对象
 	dc->bdev->bd_holder = dc;
 
 	bio_init(&dc->sb_bio, dc->sb_bio.bi_inline_vecs, 1);
 	bio_first_bvec_all(&dc->sb_bio)->bv_page = sb_page;
 	get_page(sb_page);
 
-
+    //初始化后端设备(struct cached_dev)
 	if (cached_dev_init(dc, sb->block_size << 9))
 		goto err;
 
@@ -1359,12 +1359,12 @@ static int register_bdev(struct cache_sb *sb, struct page *sb_page,
 	list_add(&dc->list, &uncached_devices);
 	/* attach to a matched cache set if it exists */
 	list_for_each_entry(c, &bch_cache_sets, list)
-		bch_cached_dev_attach(dc, c, NULL);
+		bch_cached_dev_attach(dc, c, NULL); //后端设备attach对应的cache set中
 
 	if (BDEV_STATE(&dc->sb) == BDEV_STATE_NONE ||
 	    BDEV_STATE(&dc->sb) == BDEV_STATE_STALE) {
 		err = "failed to run cached device";
-		ret = bch_cached_dev_run(dc);
+		ret = bch_cached_dev_run(dc); //使能后端设备
 		if (ret)
 			goto err;
 	}
@@ -1986,7 +1986,7 @@ static int run_cache_set(struct cache_set *c)
 	}
 
 	err = "error starting gc thread";
-	if (bch_gc_thread_start(c))
+	if (bch_gc_thread_start(c)) //启动gc线程
 		goto err;
 
 	closure_sync(&cl);
@@ -1994,7 +1994,7 @@ static int run_cache_set(struct cache_set *c)
 	bcache_write_super(c);
 
 	list_for_each_entry_safe(dc, t, &uncached_devices, list)
-		bch_cached_dev_attach(dc, c, NULL);
+		bch_cached_dev_attach(dc, c, NULL); //关联cache设备与后端设备
 
 	flash_devs_run(c);
 
@@ -2025,10 +2025,10 @@ static const char *register_cache_set(struct cache *ca)
 {
 	char buf[12];
 	const char *err = "cannot allocate memory";
-	struct cache_set *c;
+	struct cache_set *c; //一个cache set中可以有一个或多个cache设备
 
 	list_for_each_entry(c, &bch_cache_sets, list)
-		if (!memcmp(c->sb.set_uuid, ca->sb.set_uuid, 16)) {
+		if (!memcmp(c->sb.set_uuid, ca->sb.set_uuid, 16)) { //检查cache set是否存在
 			if (c->cache[ca->sb.nr_this_dev])
 				return "duplicate cache set member";
 
@@ -2041,7 +2041,7 @@ static const char *register_cache_set(struct cache *ca)
 			goto found;
 		}
 
-	c = bch_cache_set_alloc(&ca->sb);
+	c = bch_cache_set_alloc(&ca->sb);  //分配新的cache_set对象
 	if (!c)
 		return err;
 
@@ -2055,7 +2055,7 @@ static const char *register_cache_set(struct cache *ca)
 
 	bch_debug_init_cache_set(c);
 
-	list_add(&c->list, &bch_cache_sets);
+	list_add(&c->list, &bch_cache_sets); //新的cache_set链入全局变量: bch_cache_sets
 found:
 	sprintf(buf, "cache%i", ca->sb.nr_this_dev);
 	if (sysfs_create_link(&ca->kobj, &c->kobj, "set") ||
@@ -2071,13 +2071,13 @@ found:
 	}
 
 	kobject_get(&ca->kobj);
-	ca->set = c;
-	ca->set->cache[ca->sb.nr_this_dev] = ca;
+	ca->set = c;  //cache关联cache_set
+	ca->set->cache[ca->sb.nr_this_dev] = ca;  //cache_set关联cache
 	c->cache_by_alloc[c->caches_loaded++] = ca;
 
 	if (c->caches_loaded == c->sb.nr_in_set) {
 		err = "failed to run cache set";
-		if (run_cache_set(c) < 0)
+		if (run_cache_set(c) < 0) //使能cache set
 			goto err;
 	}
 
@@ -2249,7 +2249,7 @@ static int register_cache(struct cache_sb *sb, struct page *sb_page,
 	get_page(sb_page);
 
 	if (blk_queue_discard(bdev_get_queue(bdev)))
-		ca->discard = CACHE_DISCARD(&ca->sb);
+		ca->discard = CACHE_DISCARD(&ca->sb);  //如果物理缓存设备支持TRIM, 则标志
 
 	ret = cache_alloc(ca);
 	if (ret != 0) {
@@ -2278,7 +2278,7 @@ static int register_cache(struct cache_sb *sb, struct page *sb_page,
 	}
 
 	mutex_lock(&bch_register_lock);
-	err = register_cache_set(ca);
+	err = register_cache_set(ca);  //注册cache_set, 启动gc内核线程
 	mutex_unlock(&bch_register_lock);
 
 	if (err) {

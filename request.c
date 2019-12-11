@@ -75,10 +75,10 @@ static void bch_data_insert_keys(struct closure *cl)
 #endif
 
 	if (!op->replace)
-		journal_ref = bch_journal(op->c, &op->insert_keys,
+		journal_ref = bch_journal(op->c, &op->insert_keys, //对缓存设备b+tree的修改，先更新到journal
 					  op->flush_journal ? cl : NULL);
 
-	ret = bch_btree_insert(op->c, &op->insert_keys,
+	ret = bch_btree_insert(op->c, &op->insert_keys,  //更新到内存的b+tree
 			       journal_ref, replace_key);
 	if (ret == -ESRCH) {
 		op->replace_collision = true;
@@ -231,7 +231,7 @@ static void bch_data_insert_start(struct closure *cl)
 		SET_KEY_INODE(k, op->inode);
 		SET_KEY_OFFSET(k, bio->bi_iter.bi_sector);
 
-		if (!bch_alloc_sectors(op->c, k, bio_sectors(bio),
+		if (!bch_alloc_sectors(op->c, k, bio_sectors(bio),  //在缓存盘中分配新的存储区域
 				       op->write_point, op->write_prio,
 				       op->writeback))
 			goto err;
@@ -257,11 +257,11 @@ static void bch_data_insert_start(struct closure *cl)
 		bch_keylist_push(&op->insert_keys);
 
 		bio_set_op_attrs(n, REQ_OP_WRITE, 0);
-		bch_submit_bbio(n, op->c, k, 0);
+		bch_submit_bbio(n, op->c, k, 0); //将bio提交到缓存盘
 	} while (n != bio);
 
 	op->insert_data_done = true;
-	continue_at(cl, bch_data_insert_keys, op->wq);
+	continue_at(cl, bch_data_insert_keys, op->wq);  //延迟更新缓存盘中的bkey
 	return;
 err:
 	/* bch_alloc_sectors() blocks if s->writeback = true */
@@ -324,7 +324,7 @@ void bch_data_insert(struct closure *cl)
 	trace_bcache_write(op->c, op->inode, op->bio,
 			   op->writeback, op->bypass);
 
-	bch_keylist_init(&op->insert_keys);
+	bch_keylist_init(&op->insert_keys); //需要插入b+tree的key列表
 	bio_get(op->bio);
 	bch_data_insert_start(cl);
 }

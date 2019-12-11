@@ -1251,7 +1251,7 @@ static uint8_t __bch_btree_mark_key(struct cache_set *c, int level,
 			continue;
 
 		g = PTR_BUCKET(c, k, i);
-
+        //如果bucket->gen > key->gen则不用gc; 该函数同时计算key->gen - bucket->gen的最大差值； 更新gc信息
 		if (gen_after(g->last_gc, PTR_GEN(k, i)))
 			g->last_gc = PTR_GEN(k, i);
 
@@ -1265,14 +1265,14 @@ static uint8_t __bch_btree_mark_key(struct cache_set *c, int level,
 			     c, "inconsistent ptrs: mark = %llu, level = %i",
 			     GC_MARK(g), level);
 
-		if (level)
+		if (level)  //非叶节点为元数据
 			SET_GC_MARK(g, GC_MARK_METADATA);
-		else if (KEY_DIRTY(k))
+		else if (KEY_DIRTY(k))  //bch_data_insert_start中会设置dirty位
 			SET_GC_MARK(g, GC_MARK_DIRTY);
 		else if (!GC_MARK(g))
-			SET_GC_MARK(g, GC_MARK_RECLAIMABLE);
+			SET_GC_MARK(g, GC_MARK_RECLAIMABLE);  //可以回收
 
-		/* guard against overflow */
+		/* guard against overflow */ /*占用的sector包含两个部分: bucket所用的sector和key所占用的空间 */
 		SET_GC_SECTORS_USED(g, min_t(unsigned int,
 					     GC_SECTORS_USED(g) + KEY_SIZE(k),
 					     MAX_GC_SECTORS_USED));
@@ -1620,7 +1620,7 @@ static int btree_gc_recurse(struct btree *b, struct btree_op *op,
 	for (i = r; i < r + ARRAY_SIZE(r); i++)
 		i->b = ERR_PTR(-EINTR);
 
-	while (1) {
+	while (1) {  //遍历b+tree的每个node, 对每个node执行btree_gc_coalesce
 		k = bch_btree_iter_next_filter(&iter, &b->keys, bch_ptr_bad);
 		if (k) {
 			r->b = bch_btree_node_get(b->c, op, k, b->level - 1,
@@ -1631,7 +1631,7 @@ static int btree_gc_recurse(struct btree *b, struct btree_op *op,
 			}
 
 			r->keys = btree_gc_count_keys(r->b);
-
+            //判断若一个到多个（1 to 4)node的keys所占用的空间较小，则通过合并btree node的方式来减少bucket的使用量
 			ret = btree_gc_coalesce(b, op, gc, r);
 			if (ret)
 				break;
@@ -1716,11 +1716,11 @@ static int bch_btree_gc_root(struct btree *b, struct btree_op *op,
 			return -EINTR;
 		}
 	}
-
+    //垃圾回收：标记可回收的node
 	__bch_btree_mark_key(b->c, b->level + 1, &b->key);
 
 	if (b->level) {
-		ret = btree_gc_recurse(b, op, writes, gc);
+		ret = btree_gc_recurse(b, op, writes, gc); //垃圾回收：合并较小的node，腾出可回收的node
 		if (ret)
 			return ret;
 	}
@@ -1837,11 +1837,11 @@ static void bch_btree_gc(struct cache_set *c)
 	closure_init_stack(&writes);
 	bch_btree_op_init(&op, SHRT_MAX);
 
-	btree_gc_start(c);
+	btree_gc_start(c);  //标记gc开始工作
 
 	/* if CACHE_SET_IO_DISABLE set, gc thread should stop too */
-	do {
-		ret = btree_root(gc_root, c, &op, &writes, &stats);
+	do {  //对btree的根节点调用，btree_root将第一个参数gc_root组装成函数: bch_btree_gc_root
+		ret = btree_root(gc_root, c, &op, &writes, &stats);  //遍历btree，标记哪些bucket可被gc回收
 		closure_sync(&writes);
 		cond_resched();
 
@@ -1852,8 +1852,8 @@ static void bch_btree_gc(struct cache_set *c)
 			pr_warn("gc failed!");
 	} while (ret && !test_bit(CACHE_SET_IO_DISABLE, &c->flags));
 
-	bch_btree_gc_finish(c);
-	wake_up_allocators(c);
+	bch_btree_gc_finish(c);  //标记不能gc的bucket为meta, 并统计能gc的bucket数目
+	wake_up_allocators(c);   //gc完成后，唤醒分配器线程s
 
 	bch_time_stats_update(&c->btree_gc_time, start_time);
 
@@ -1864,7 +1864,7 @@ static void bch_btree_gc(struct cache_set *c)
 
 	trace_bcache_gc_end(c);
 
-	bch_moving_gc(c);
+	bch_moving_gc(c);  //根据标志位，完成实际gc工作
 }
 
 static bool gc_should_run(struct cache_set *c)
@@ -1890,7 +1890,7 @@ static int bch_gc_thread(void *arg)
 		wait_event_interruptible(c->gc_wait,
 			   kthread_should_stop() ||
 			   test_bit(CACHE_SET_IO_DISABLE, &c->flags) ||
-			   gc_should_run(c));
+			   gc_should_run(c));  //在wait_event_interruptible内部，将会循环调用gc_should_run
 
 		if (kthread_should_stop() ||
 		    test_bit(CACHE_SET_IO_DISABLE, &c->flags))

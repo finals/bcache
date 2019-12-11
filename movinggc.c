@@ -107,7 +107,7 @@ static void write_moving(struct closure *cl)
 		bkey_copy(&op->replace_key, &io->w->key);
 		op->replace		= true;
 
-		closure_call(&op->cl, bch_data_insert, NULL, cl);
+		closure_call(&op->cl, bch_data_insert, NULL, cl); //更新内存b+tree
 	}
 
 	continue_at(cl, write_moving_finish, op->wq);
@@ -117,10 +117,10 @@ static void read_moving_submit(struct closure *cl)
 {
 	struct moving_io *io = container_of(cl, struct moving_io, cl);
 	struct bio *bio = &io->bio.bio;
-
+    //该bio的bi_sector由bch_moving_gc中keybuf * w 中获得
 	bch_submit_bbio(bio, io->op.c, &io->w->key, 0);
 
-	continue_at(cl, write_moving, io->op.wq);
+	continue_at(cl, write_moving, io->op.wq); //从缓存设备读取数据后，写入后端设备
 }
 
 static void read_moving(struct cache_set *c)
@@ -135,8 +135,8 @@ static void read_moving(struct cache_set *c)
 	/* XXX: if we error, background writeback could stall indefinitely */
 
 	while (!test_bit(CACHE_SET_STOPPING, &c->flags)) {
-		w = bch_keybuf_next_rescan(c, &c->moving_gc_keys,
-					   &MAX_KEY, moving_pred);
+		w = bch_keybuf_next_rescan(c, &c->moving_gc_keys,  //bch_keybuf_next_rescan每次从红黑树返回一个struct keybuf_key
+					   &MAX_KEY, moving_pred);             //填充moving_gc_keys
 		if (!w)
 			break;
 
@@ -157,10 +157,10 @@ static void read_moving(struct cache_set *c)
 		io->op.c	= c;
 		io->op.wq	= c->moving_gc_wq;
 
-		moving_init(io);
+		moving_init(io);  //根据io生成&io->bio.bio
 		bio = &io->bio.bio;
 
-		bio_set_op_attrs(bio, REQ_OP_READ, 0);
+		bio_set_op_attrs(bio, REQ_OP_READ, 0); //从缓存设备读取
 		bio->bi_end_io	= read_moving_endio;
 
 		if (bch_bio_alloc_pages(bio, GFP_KERNEL))
@@ -169,7 +169,7 @@ static void read_moving(struct cache_set *c)
 		trace_bcache_gc_copy(&w->key);
 
 		down(&c->moving_in_flight);
-		closure_call(&io->cl, read_moving_submit, NULL, &cl);
+		closure_call(&io->cl, read_moving_submit, NULL, &cl);  //延迟
 	}
 
 	if (0) {
@@ -205,19 +205,19 @@ void bch_moving_gc(struct cache_set *c)
 
 	mutex_lock(&c->bucket_lock);
 
-	for_each_cache(ca, c, i) {
+	for_each_cache(ca, c, i) {  //遍历cache set中的所有cache设备
 		unsigned int sectors_to_move = 0;
 		unsigned int reserve_sectors = ca->sb.bucket_size *
 			     fifo_used(&ca->free[RESERVE_MOVINGGC]);
 
 		ca->heap.used = 0;
 
-		for_each_bucket(b, ca) {
-			if (GC_MARK(b) == GC_MARK_METADATA ||
-			    !GC_SECTORS_USED(b) ||
-			    GC_SECTORS_USED(b) == ca->sb.bucket_size ||
-			    atomic_read(&b->pin))
-				continue;
+		for_each_bucket(b, ca) {  //遍历cache设备中的bucket
+			if (GC_MARK(b) == GC_MARK_METADATA ||  //元数据bucket不能回收
+			    !GC_SECTORS_USED(b) ||             //bucket的使用量为0
+			    GC_SECTORS_USED(b) == ca->sb.bucket_size ||  //bucket使用量为满
+			    atomic_read(&b->pin))              //bucket的pin等于0表示不能回收
+				continue;  //跳过不能回收的bucket
 
 			if (!heap_full(&ca->heap)) {
 				sectors_to_move += GC_SECTORS_USED(b);
