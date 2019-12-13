@@ -612,7 +612,7 @@ next:
 
 /*
  * Returns true if we scanned the entire disk
- */
+ */ //寻找b+树种的脏节点，填充到cached_dev中的writeback_keys中
 static bool refill_dirty(struct cached_dev *dc)
 {
 	struct keybuf *buf = &dc->writeback_keys;
@@ -685,7 +685,7 @@ static int bch_writeback_thread(void *arg)
 		}
 		set_current_state(TASK_RUNNING);
 
-		searched_full_index = refill_dirty(dc);
+		searched_full_index = refill_dirty(dc);  //遍历cache_set中的b+tree，将脏节点存到cached_dev的writeback_keys中
 
 		if (searched_full_index &&
 		    RB_EMPTY_ROOT(&dc->writeback_keys.keys)) {

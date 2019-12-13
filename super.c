@@ -1165,7 +1165,7 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c,
 		bch_uuid_write(c);
 	}
 
-	bcache_device_attach(&dc->disk, c, u - c->uuids);
+	bcache_device_attach(&dc->disk, c, u - c->uuids); //关联后端设备到缓存设备
 	list_move(&dc->list, &c->cached_devs); //cached_dev链入cache_set的cached_devs字段中
 	calc_cached_dev_sectors(c);
 
@@ -1800,9 +1800,9 @@ struct cache_set *bch_cache_set_alloc(struct cache_sb *sb)
 	    !(c->uuids = alloc_bucket_pages(GFP_KERNEL, c)) ||
 	    !(c->moving_gc_wq = alloc_workqueue("bcache_gc",
 						WQ_MEM_RECLAIM, 0)) ||
-	    bch_journal_alloc(c) ||
-	    bch_btree_cache_alloc(c) ||
-	    bch_open_buckets_alloc(c) ||
+	    bch_journal_alloc(c) ||       //journal初始化
+	    bch_btree_cache_alloc(c) ||   //建立btree node的分配缓存管理结构
+	    bch_open_buckets_alloc(c) ||  //初始化c->data_buckets 一共为128个
 	    bch_bset_sort_state_init(&c->sort, ilog2(c->btree_pages)))
 		goto err;
 

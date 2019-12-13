@@ -929,7 +929,7 @@ int bch_journal_alloc(struct cache_set *c)
 
 	j->w[0].c = c;
 	j->w[1].c = c;
-
+    //建立journal双向缓冲
 	if (!(init_fifo(&j->pin, JOURNAL_PIN, GFP_KERNEL)) ||
 	    !(j->w[0].data = (void *) __get_free_pages(GFP_KERNEL, JSET_BITS)) ||
 	    !(j->w[1].data = (void *) __get_free_pages(GFP_KERNEL, JSET_BITS)))

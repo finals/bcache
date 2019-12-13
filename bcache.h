@@ -196,8 +196,8 @@
 
 struct bucket {
 	atomic_t	pin;
-	uint16_t	prio;
-	uint8_t		gen;
+	uint16_t	prio;    /* 每次hit都会增加，然后所有的bucket的优先级编号都会周期性地减少，不常用的会被回收，这个优先级编号主要是用来实现lru替换的 */
+	uint8_t		gen;     /* generation，用来invalidate bucket用的 */
 	uint8_t		last_gc; /* Most out of date gen in the btree */
 	uint16_t	gc_mark; /* Bitfield used by GC. See below for field */
 };
@@ -379,8 +379,8 @@ struct cached_dev {
 	int32_t			writeback_rate_change;
 
 	unsigned int		writeback_rate_update_seconds;
-	unsigned int		writeback_rate_i_term_inverse;
-	unsigned int		writeback_rate_p_term_inverse;
+	unsigned int		writeback_rate_i_term_inverse;  //表示1秒内出错的概率阈值，默认10000，表示1秒内高于1/10000的错误会记录下来
+	unsigned int		writeback_rate_p_term_inverse;  //用于计算flush速率，默认40，表示速率为在40秒内能刷脏完成
 	unsigned int		writeback_rate_minimum;
 
 	enum stop_on_failure	stop_when_cache_set_failed;

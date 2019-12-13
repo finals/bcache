@@ -1125,7 +1125,7 @@ static struct bkey *__bch_btree_iter_init(struct btree_keys *b,
 
 	return ret;
 }
-
+//根据要search的bkeys,遍历btree中的bset, bset中的bkey.然后将满足条件的bkey集合以{bkey_start, bkey_end}元素形式添加到heap中
 struct bkey *bch_btree_iter_init(struct btree_keys *b,
 				 struct btree_iter *iter,
 				 struct bkey *search)
@@ -1166,7 +1166,7 @@ struct bkey *bch_btree_iter_next(struct btree_iter *iter)
 
 }
 EXPORT_SYMBOL(bch_btree_iter_next);
-
+//根据heap中的bkey范围，每次返回一个bkey
 struct bkey *bch_btree_iter_next_filter(struct btree_iter *iter,
 					struct btree_keys *b, ptr_filter_fn fn)
 {

@@ -873,7 +873,7 @@ static struct btree *mca_find(struct cache_set *c, struct bkey *k)
 	struct btree *b;
 
 	rcu_read_lock();
-	hlist_for_each_entry_rcu(b, mca_hash(c, k), hash)
+	hlist_for_each_entry_rcu(b, mca_hash(c, k), hash) //根据key的hash从hlist中取出下一个btree节点
 		if (PTR_HASH(c, &b->key) == PTR_HASH(c, k))
 			goto out;
 	b = NULL;
@@ -1024,7 +1024,7 @@ struct btree *bch_btree_node_get(struct cache_set *c, struct btree_op *op,
 retry:
 	b = mca_find(c, k);
 
-	if (!b) {
+	if (!b) { //若key对应的内存btree不存在，则先申请分配一个bucket,并从缓存盘读取数据
 		if (current->bio_list)
 			return ERR_PTR(-EAGAIN);
 
@@ -1719,8 +1719,8 @@ static int bch_btree_gc_root(struct btree *b, struct btree_op *op,
     //垃圾回收：标记可回收的node
 	__bch_btree_mark_key(b->c, b->level + 1, &b->key);
 
-	if (b->level) {
-		ret = btree_gc_recurse(b, op, writes, gc); //垃圾回收：合并较小的node，腾出可回收的node
+	if (b->level) { //level表示btree的高度，叶子节点level == 0，非叶子节点>0, 表示元数据bucket
+		ret = btree_gc_recurse(b, op, writes, gc); //元数据垃圾回收：合并较小的node，腾出可回收的node
 		if (ret)
 			return ret;
 	}
@@ -2427,8 +2427,8 @@ static int bch_btree_map_keys_recurse(struct btree *b, struct btree_op *op,
 
 	while ((k = bch_btree_iter_next_filter(&iter, &b->keys, bch_ptr_bad))) {
 		ret = !b->level
-			? fn(op, b, k)
-			: btree(map_keys_recurse, k, b, op, from, fn, flags);
+			? fn(op, b, k)  //level等于0，表示叶子节点，回调函数处理叶子节点
+			: btree(map_keys_recurse, k, b, op, from, fn, flags); //非叶子节点，递归调用 bch_btree_map_keys_recurse
 		from = NULL;
 
 		if (ret != MAP_CONTINUE)
@@ -2444,7 +2444,7 @@ static int bch_btree_map_keys_recurse(struct btree *b, struct btree_op *op,
 
 int bch_btree_map_keys(struct btree_op *op, struct cache_set *c,
 		       struct bkey *from, btree_map_keys_fn *fn, int flags)
-{
+{   //遍历b+tree进行查找，调用 bch_btree_map_keys_recurse
 	return btree_root(map_keys_recurse, c, op, from, fn, flags);
 }
 
