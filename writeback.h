@@ -100,10 +100,10 @@ static inline void bch_writeback_add(struct cached_dev *dc)
 		if (BDEV_STATE(&dc->sb) != BDEV_STATE_DIRTY) {
 			SET_BDEV_STATE(&dc->sb, BDEV_STATE_DIRTY);
 			/* XXX: should do this synchronously */
-			bch_write_bdev_super(dc, NULL);
+			bch_write_bdev_super(dc, NULL);  //将dirty标志写入后端设备超级块中
 		}
 
-		bch_writeback_queue(dc);
+		bch_writeback_queue(dc);  //唤醒writeback_thread
 	}
 }
 
