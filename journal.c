@@ -564,7 +564,7 @@ static void do_journal_discard(struct cache *ca)
 		queue_work(bch_journal_wq, &ja->discard_work);
 	}
 }
-
+//由于journal在磁盘中的存储空间有限， 当journal已满时需要抛弃较旧的journal
 static void journal_reclaim(struct cache_set *c)
 {
 	struct bkey *k = &c->journal.key;
@@ -581,7 +581,7 @@ static void journal_reclaim(struct cache_set *c)
 	last_seq = last_seq(&c->journal);
 
 	/* Update last_idx */
-
+    //选择last_idx
 	for_each_cache(ca, c, iter) {
 		struct journal_device *ja = &ca->journal;
 
@@ -592,7 +592,7 @@ static void journal_reclaim(struct cache_set *c)
 	}
 
 	for_each_cache(ca, c, iter)
-		do_journal_discard(ca);
+		do_journal_discard(ca);  //抛弃流程
 
 	if (c->journal.blocks_free)
 		goto out;
@@ -804,7 +804,7 @@ static struct journal_write *journal_wait_for_write(struct cache_set *c,
 
 		sectors = __set_blocks(w->data, w->data->keys + nkeys,
 				       block_bytes(c)) * c->sb.block_size;
-
+        //如果journal当前缓冲区能方向keylist中的key，直接返回
 		if (sectors <= min_t(size_t,
 				     c->journal.blocks_free * c->sb.block_size,
 				     PAGE_SECTORS << JSET_BITS))
@@ -813,7 +813,7 @@ static struct journal_write *journal_wait_for_write(struct cache_set *c,
 		if (wait)
 			closure_wait(&c->journal.wait, &cl);
 
-		if (!journal_full(&c->journal)) {
+		if (!journal_full(&c->journal)) {  //当前journal未满，调用journal_try_write尝试写入一部分数据
 			if (wait)
 				trace_bcache_journal_entry_full(c);
 
@@ -830,7 +830,7 @@ static struct journal_write *journal_wait_for_write(struct cache_set *c,
 			if (wait)
 				trace_bcache_journal_full(c);
 
-			journal_reclaim(c);
+			journal_reclaim(c);  //当前journal已满，尝试回收内存中journal空间
 			spin_unlock(&c->journal.lock);
 
 			btree_flush_write(c);
@@ -875,7 +875,7 @@ atomic_t *bch_journal(struct cache_set *c,
 		return NULL;
 
 	w = journal_wait_for_write(c, bch_keylist_nkeys(keys));
-
+    //将keys存入journal缓存
 	memcpy(bset_bkey_last(w->data), keys->keys, bch_keylist_bytes(keys));
 	w->data->keys += bch_keylist_nkeys(keys);
 
@@ -884,7 +884,7 @@ atomic_t *bch_journal(struct cache_set *c,
 
 	if (parent) {
 		closure_wait(&w->wait, parent);
-		journal_try_write(c);
+		journal_try_write(c);  //尝试持久化journal
 	} else if (!w->dirty) {
 		w->dirty = true;
 		schedule_delayed_work(&c->journal.work,

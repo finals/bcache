@@ -75,8 +75,8 @@
 
 uint8_t bch_inc_gen(struct cache *ca, struct bucket *b)
 {
-	uint8_t ret = ++b->gen;
-
+	uint8_t ret = ++b->gen;  //这里会更新bucket的gen
+    //能invalidate的条件是为被gc mark,或gc设为可回收，且未被invalidate,且代数未到最大(96U)
 	ca->set->need_gc = max(ca->set->need_gc, bucket_gc_gen(b));
 	WARN_ON_ONCE(ca->set->need_gc > BUCKET_GC_GEN_MAX);
 
@@ -96,7 +96,7 @@ void bch_rescale_priorities(struct cache_set *c, int sectors)
 	do {
 		r = atomic_read(&c->rescale);
 
-		if (r >= 0)
+		if (r >= 0) //用atomic控制并发，当已有task执行rescale时,直接返回
 			return;
 	} while (atomic_cmpxchg(&c->rescale, r, r + next) != r);
 
@@ -109,7 +109,7 @@ void bch_rescale_priorities(struct cache_set *c, int sectors)
 			if (b->prio &&
 			    b->prio != BTREE_PRIO &&
 			    !atomic_read(&b->pin)) {
-				b->prio--;
+				b->prio--;  //减少除元数据和未分配的bucket外的prio, 最小减到0
 				c->min_prio = min(c->min_prio, b->prio);
 			}
 
@@ -184,21 +184,21 @@ static void invalidate_buckets_lru(struct cache *ca)
 
 	ca->heap.used = 0;
 
-	for_each_bucket(b, ca) {
-		if (!bch_can_invalidate_bucket(ca, b))
+	for_each_bucket(b, ca) {  //遍历cache disk的每个bucket
+		if (!bch_can_invalidate_bucket(ca, b))  //判断bucket是否能够回收
 			continue;
 
-		if (!heap_full(&ca->heap))
+		if (!heap_full(&ca->heap))  //将可回收的bucket加入到heap中
 			heap_add(&ca->heap, b, bucket_max_cmp);
 		else if (bucket_max_cmp(b, heap_peek(&ca->heap))) {
 			ca->heap.data[0] = b;
 			heap_sift(&ca->heap, 0, bucket_max_cmp);
 		}
 	}
-
+    //将heap中的bucket按照prio从小到大排序
 	for (i = ca->heap.used / 2 - 1; i >= 0; --i)
 		heap_sift(&ca->heap, i, bucket_min_cmp);
-
+   //一次从堆中取出bucket,做bch_invalidate_one_bucket； 直到ca->free_inc满 
 	while (!fifo_full(&ca->free_inc)) {
 		if (!heap_pop(&ca->heap, b, bucket_min_cmp)) {
 			/*
@@ -206,7 +206,7 @@ static void invalidate_buckets_lru(struct cache *ca)
 			 * multiple times when it can't do anything
 			 */
 			ca->invalidate_needs_gc = 1;
-			wake_up_gc(ca->set);
+			wake_up_gc(ca->set);  //若ca->free_inc未满，则唤醒gc线程
 			return;
 		}
 
@@ -224,12 +224,12 @@ static void invalidate_buckets_fifo(struct cache *ca)
 		    ca->fifo_last_bucket >= ca->sb.nbuckets)
 			ca->fifo_last_bucket = ca->sb.first_bucket;
 
-		b = ca->buckets + ca->fifo_last_bucket++;
+		b = ca->buckets + ca->fifo_last_bucket++;  //找到最先分配的bucket
 
 		if (bch_can_invalidate_bucket(ca, b))
 			bch_invalidate_one_bucket(ca, b);
 
-		if (++checked >= ca->sb.nbuckets) {
+		if (++checked >= ca->sb.nbuckets) {  //若由于很多bucket不能回收, 这时需要唤醒gc
 			ca->invalidate_needs_gc = 1;
 			wake_up_gc(ca->set);
 			return;
@@ -266,7 +266,7 @@ static void invalidate_buckets_random(struct cache *ca)
 static void invalidate_buckets(struct cache *ca)
 {
 	BUG_ON(ca->invalidate_needs_gc);
-
+    //三种缓存回收算法
 	switch (CACHE_REPLACEMENT(&ca->sb)) {
 	case CACHE_REPLACEMENT_LRU:
 		invalidate_buckets_lru(ca);
@@ -330,8 +330,8 @@ static int bch_allocator_thread(void *arg)
 		while (1) {
 			long bucket;
 
-			if (!fifo_pop(&ca->free_inc, bucket))
-				break;
+			if (!fifo_pop(&ca->free_inc, bucket)) //尝试pop一个后备的bucket
+				break;  //如果free_inc为空，需要跳出循环，通过gc，回收可用的bucket
 
 			if (ca->discard) {
 				mutex_unlock(&ca->set->bucket_lock);
@@ -341,8 +341,8 @@ static int bch_allocator_thread(void *arg)
 				mutex_lock(&ca->set->bucket_lock);
 			}
 
-			allocator_wait(ca, bch_allocator_push(ca, bucket));
-			wake_up(&ca->set->btree_cache_wait);
+			allocator_wait(ca, bch_allocator_push(ca, bucket));  //确保能够分配到可用bucket
+			wake_up(&ca->set->btree_cache_wait);  //唤醒wait alloc而等待的线程
 			wake_up(&ca->set->bucket_wait);
 		}
 
@@ -354,8 +354,8 @@ static int bch_allocator_thread(void *arg)
 
 retry_invalidate:
 		allocator_wait(ca, ca->set->gc_mark_valid &&
-			       !ca->invalidate_needs_gc);
-		invalidate_buckets(ca);
+			       !ca->invalidate_needs_gc);  //同时只允许一个gc工作，如果有其他gc工作，则等待gc完成
+		invalidate_buckets(ca);  //将bucket置为invalidate，将触发gc完成缓存替换
 
 		/*
 		 * Now, we write their new gens to disk so we can start writing
@@ -377,7 +377,7 @@ retry_invalidate:
 			if (!fifo_full(&ca->free_inc))
 				goto retry_invalidate;
 
-			bch_prio_write(ca);
+			bch_prio_write(ca);  //更新存储在磁盘中的bucket的gen信息
 		}
 	}
 out:
@@ -408,7 +408,7 @@ long bch_bucket_alloc(struct cache *ca, unsigned int reserve, bool wait)
 		return -1;
 	}
 
-	do {
+	do {  //如果没有free的bucket可用，则当前线程进入等待，直到有可用的bucket
 		prepare_to_wait(&ca->set->bucket_wait, &w,
 				TASK_UNINTERRUPTIBLE);
 
@@ -421,7 +421,7 @@ long bch_bucket_alloc(struct cache *ca, unsigned int reserve, bool wait)
 	finish_wait(&ca->set->bucket_wait, &w);
 out:
 	if (ca->alloc_thread)
-		wake_up_process(ca->alloc_thread);
+		wake_up_process(ca->alloc_thread); //唤醒分配线程
 
 	trace_bcache_alloc(ca, reserve);
 
@@ -443,12 +443,12 @@ out:
 	b = ca->buckets + r;
 
 	BUG_ON(atomic_read(&b->pin) != 1);
-
+    //更新要分配bucket的信息
 	SET_GC_SECTORS_USED(b, ca->sb.bucket_size);
 
-	if (reserve <= RESERVE_PRIO) {
-		SET_GC_MARK(b, GC_MARK_METADATA);
-		SET_GC_MOVE(b, 0);
+	if (reserve <= RESERVE_PRIO) {  //如果bucket分配给元数据使用
+		SET_GC_MARK(b, GC_MARK_METADATA); //元数据bucket不能随意回收
+		SET_GC_MOVE(b, 0);  //该bucket目前不需要gc处理
 		b->prio = BTREE_PRIO;
 	} else {
 		SET_GC_MARK(b, GC_MARK_RECLAIMABLE);
@@ -456,7 +456,7 @@ out:
 		b->prio = INITIAL_PRIO;
 	}
 
-	if (ca->set->avail_nbuckets > 0) {
+	if (ca->set->avail_nbuckets > 0) {  //更新统计数据
 		ca->set->avail_nbuckets--;
 		bch_update_bucket_in_use(ca->set, &ca->set->gc_stats);
 	}

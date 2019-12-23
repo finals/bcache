@@ -905,7 +905,7 @@ unsigned int bch_btree_insert_key(struct btree_keys *b, struct bkey *k,
 		return status;
 
 	status = BTREE_INSERT_STATUS_INSERT;
-
+    //遍历检查b+tree中的bset是否已经排序
 	while (m != bset_bkey_last(i) &&
 	       bkey_cmp(k, b->ops->is_extents ? &START_KEY(m) : m) > 0)
 		prev = m, m = bkey_next(m);
@@ -913,7 +913,7 @@ unsigned int bch_btree_insert_key(struct btree_keys *b, struct bkey *k,
 	/* prev is in the tree, if we merge we're done */
 	status = BTREE_INSERT_STATUS_BACK_MERGE;
 	if (prev &&
-	    bch_bkey_try_merge(b, prev, k))
+	    bch_bkey_try_merge(b, prev, k)) //如果b+tree中的bset已经排好序
 		goto merged;
 #if 0
 	status = BTREE_INSERT_STATUS_OVERWROTE;
@@ -926,7 +926,7 @@ unsigned int bch_btree_insert_key(struct btree_keys *b, struct bkey *k,
 	    bch_bkey_try_merge(b, k, m))
 		goto copy;
 
-	bch_bset_insert(b, m, k);
+	bch_bset_insert(b, m, k); //执行b+tree的添加或replace操作
 copy:	bkey_copy(m, k);
 merged:
 	return status;

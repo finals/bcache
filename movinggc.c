@@ -27,7 +27,7 @@ static bool moving_pred(struct keybuf *buf, struct bkey *k)
 
 	for (i = 0; i < KEY_PTRS(k); i++)
 		if (ptr_available(c, k, i) &&
-		    GC_MOVE(PTR_BUCKET(c, k, i)))
+		    GC_MOVE(PTR_BUCKET(c, k, i))) //如果key对应的bucket被标记为move，在bch_moving_gc中被设置
 			return true;
 
 	return false;

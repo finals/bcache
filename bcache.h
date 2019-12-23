@@ -337,7 +337,7 @@ struct cached_dev {
 	struct task_struct	*writeback_thread;
 	struct workqueue_struct	*writeback_write_wq;
 
-	struct keybuf		writeback_keys;
+	struct keybuf		writeback_keys; //记录需要writeback的keys
 
 	struct task_struct	*status_update_thread;
 	/*

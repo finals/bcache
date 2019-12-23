@@ -231,7 +231,7 @@ static void bch_data_insert_start(struct closure *cl)
 		SET_KEY_INODE(k, op->inode);
 		SET_KEY_OFFSET(k, bio->bi_iter.bi_sector);
 
-		if (!bch_alloc_sectors(op->c, k, bio_sectors(bio),  //在缓存盘中分配新的存储区域
+		if (!bch_alloc_sectors(op->c, k, bio_sectors(bio),  //在缓存盘中分配新的存储区域，从bucket中分配空间
 				       op->write_point, op->write_prio,
 				       op->writeback))
 			goto err;
@@ -261,7 +261,7 @@ static void bch_data_insert_start(struct closure *cl)
 	} while (n != bio);
 
 	op->insert_data_done = true;
-	continue_at(cl, bch_data_insert_keys, op->wq);  //延迟更新缓存盘中的bkey
+	continue_at(cl, bch_data_insert_keys, op->wq);  //延迟更新缓存盘中的b+tree
 	return;
 err:
 	/* bch_alloc_sectors() blocks if s->writeback = true */
@@ -324,9 +324,9 @@ void bch_data_insert(struct closure *cl)
 	trace_bcache_write(op->c, op->inode, op->bio,
 			   op->writeback, op->bypass);
 
-	bch_keylist_init(&op->insert_keys); ////初始化keylist, keylist是一种双端队列结构
+	bch_keylist_init(&op->insert_keys); //初始化keylist, keylist是一种双端队列结构
 	bio_get(op->bio);
-	bch_data_insert_start(cl);
+	bch_data_insert_start(cl); //数据插入缓存设备
 }
 
 /*
@@ -409,7 +409,7 @@ static bool check_should_bypass(struct cached_dev *dc, struct bio *bio)
 		if ((get_random_int() & 3) == 3)
 			goto skip;
 		else
-			goto rescale;
+			goto rescale; //25%的概率
 	}
 
 	congested = bch_get_congested(c);
@@ -456,7 +456,7 @@ found:
 	}
 
 rescale:
-	bch_rescale_priorities(c, bio_sectors(bio));
+	bch_rescale_priorities(c, bio_sectors(bio)); //减少bucket的prio
 	return false;
 skip:
 	bch_mark_sectors_bypassed(c, dc, bio_sectors(bio));
@@ -520,7 +520,7 @@ static int cache_lookup_fn(struct btree_op *op, struct btree *b, struct bkey *k)
 	struct bio *n, *bio = &s->bio.bio;
 	struct bkey *bio_key;
 	unsigned int ptr;
-    //若带搜索的key比当前key小，则返回MAP_CONTINUE让上层搜索下一个key
+    //若待搜索的key比当前key小，则返回MAP_CONTINUE让上层搜索下一个key
 	if (bkey_cmp(k, &KEY(s->iop.inode, bio->bi_iter.bi_sector, 0)) <= 0)
 		return MAP_CONTINUE;
 
@@ -587,7 +587,7 @@ static void cache_lookup(struct closure *cl)
 	int ret;
 
 	bch_btree_op_init(&s->op, -1);
-    //遍历b+树, 遇到叶子节点时调用cache_lookup_fn
+    //遍历b+树, 遇到叶子节点(非元数据节点)时调用cache_lookup_fn
 	ret = bch_btree_map_keys(&s->op, s->iop.c,
 				 &KEY(s->iop.inode, bio->bi_iter.bi_sector, 0),
 				 cache_lookup_fn, MAP_END_KEY);
@@ -815,7 +815,7 @@ static void cached_dev_cache_miss_done(struct closure *cl)
 	if (s->iop.bio)
 		bio_free_pages(s->iop.bio);
 
-	cached_dev_bio_complete(cl);
+	cached_dev_bio_complete(cl); //释放search结构
 	closure_put(&d->cl);
 }
 
@@ -872,7 +872,7 @@ static void cached_dev_read_done_bh(struct closure *cl)
 
 	if (s->iop.status)
 		continue_at_nobarrier(cl, cached_dev_read_error, bcache_wq);
-	else if (s->iop.bio || verify(dc)) //当s->iop.bio不为0时， 表明有新的数据要添加到管理缓存的b+tree中
+	else if (s->iop.bio || verify(dc)) //当s->iop.bio不为0时， 表明cache_lookup_fn从后端设备读取到新数据，需要添加到缓存b+tree中
 		continue_at_nobarrier(cl, cached_dev_read_done, bcache_wq);
 	else
 		continue_at_nobarrier(cl, cached_dev_bio_complete, NULL);
@@ -888,7 +888,7 @@ static int cached_dev_cache_miss(struct btree *b, struct search *s,
 
 	s->cache_missed = 1;
 
-	if (s->cache_miss || s->iop.bypass) { //当miss函数重入(s->cache_miss)或read bypass时， 直接从主设备读取
+	if (s->cache_miss || s->iop.bypass) { //当miss函数重入(s->cache_miss)或read bypass时， 直接从后端设备读取
 		miss = bio_next_split(bio, sectors, GFP_NOIO, &s->d->bio_split);
 		ret = miss == bio ? MAP_DONE : MAP_CONTINUE;
 		goto out_submit;
@@ -906,7 +906,7 @@ static int cached_dev_cache_miss(struct btree *b, struct search *s,
 				 bio->bi_iter.bi_sector + s->insert_bio_sectors,
 				 s->insert_bio_sectors);
 
-	ret = bch_btree_insert_check_key(b, &s->op, &s->iop.replace_key);  //向btree提交key
+	ret = bch_btree_insert_check_key(b, &s->op, &s->iop.replace_key);  //向b+tree提交替换的key
 	if (ret)
 		return ret;
 
@@ -938,7 +938,7 @@ static int cached_dev_cache_miss(struct btree *b, struct search *s,
 		bch_mark_cache_readahead(s->iop.c, s->d);
 
 	s->cache_miss	= miss;
-	s->iop.bio	= cache_bio;
+	s->iop.bio	= cache_bio; //将bio记录到iop.bio中，以便上层cached_dev_read_done_bh将数据存入缓存设备
 	bio_get(cache_bio);
 	/* I/O request sent to backing device */
 	closure_bio_submit(s->iop.c, cache_bio, &s->cl); //从主设备读取数据，并将bio记录到iop.bio中以便上层cached_dev_read_done_bh 将数据加到缓存设备
@@ -988,7 +988,7 @@ static void cached_dev_write(struct cached_dev *dc, struct search *s)
 		 * We overlap with some dirty data undergoing background
 		 * writeback, force this write to writeback
 		 */
-		s->iop.bypass = false;
+		s->iop.bypass = false;  //若有overlap，取消bypass，表示写缓存设备，并使能writeback
 		s->iop.writeback = true;
 	}
 
@@ -1010,7 +1010,7 @@ static void cached_dev_write(struct cached_dev *dc, struct search *s)
 	}
 
 	if (s->iop.bypass) {  //绕过缓存
-		s->iop.bio = s->orig_bio;
+		s->iop.bio = s->orig_bio; //直接使用原bio
 		bio_get(s->iop.bio);
 
 		if (bio_op(bio) == REQ_OP_DISCARD &&
@@ -1053,7 +1053,7 @@ static void cached_dev_write(struct cached_dev *dc, struct search *s)
 	}
 
 insert_data:
-	closure_call(&s->iop.cl, bch_data_insert, NULL, cl); //向btree更新节点
+	closure_call(&s->iop.cl, bch_data_insert, NULL, cl); //将数据写入缓存设备，向btree更新节点
 	continue_at(cl, cached_dev_write_complete, NULL); //写io完成，将调用bio->bi_end_io(backing_request_endio)
 }
 
@@ -1204,7 +1204,7 @@ static blk_qc_t cached_dev_make_request(struct request_queue *q,
 	bio_set_dev(bio, dc->bdev);  //设置bio的目标设备为后端设备
 	bio->bi_iter.bi_sector += dc->sb.data_offset;
 
-	if (cached_dev_get(dc)) {
+	if (cached_dev_get(dc)) {  //判断缓存设备是否存在
 		s = search_alloc(bio, d);
 		trace_bcache_request_start(s->d, bio);
 

@@ -1838,7 +1838,7 @@ static int run_cache_set(struct cache_set *c)
 		struct jset *j;
 
 		err = "cannot allocate memory for journal";
-		if (bch_journal_read(c, &journal))
+		if (bch_journal_read(c, &journal)) //从cache disk中读出持久化的journal
 			goto err;
 
 		pr_debug("btree_journal_read() done");
@@ -1900,7 +1900,7 @@ static int run_cache_set(struct cache_set *c)
 			c->shrink.scan_objects(&c->shrink, &sc);
 		}
 
-		bch_journal_mark(c, &journal);
+		bch_journal_mark(c, &journal); //journal list来确定那些journal需要重新提交
 		bch_initial_gc_finish(c);
 		pr_debug("btree_check() done");
 
@@ -1909,7 +1909,7 @@ static int run_cache_set(struct cache_set *c)
 		 * btree_gc_finish() will give spurious errors about last_gc >
 		 * gc_gen - this is a hack but oh well.
 		 */
-		bch_journal_next(&c->journal);
+		bch_journal_next(&c->journal);  //journal才用了双缓冲区，该函数交换两个缓冲区
 
 		err = "error starting allocator thread";
 		for_each_cache(ca, c, i)
@@ -1930,7 +1930,7 @@ static int run_cache_set(struct cache_set *c)
 			__uuid_write(c);
 
 		err = "bcache: replay journal failed";
-		if (bch_journal_replay(c, &journal))
+		if (bch_journal_replay(c, &journal))  //重做因为崩溃或突然关机以记录而为持久化的bset
 			goto err;
 	} else {
 		pr_notice("invalidating existing data");

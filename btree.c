@@ -556,7 +556,7 @@ static void bch_btree_leaf_dirty(struct btree *b, atomic_t *journal_ref)
 		}
 	}
 
-	/* Force write if set is too big */
+	/* Force write if set is too big */ //bset的大小已超过限制值，需要立刻更新缓存设备的btree node
 	if (set_bytes(i) > PAGE_SIZE - 48 &&
 	    !current->bio_list)
 		bch_btree_node_write(b, NULL);
@@ -2043,13 +2043,13 @@ static bool bch_btree_insert_keys(struct btree *b, struct btree_op *op,
 		if (bkey_u64s(k) > insert_u64s_remaining(b))
 			break;
 
-		if (bkey_cmp(k, &b->key) <= 0) {
+		if (bkey_cmp(k, &b->key) <= 0) { //要插入key < btree->key, 则直接调用btree_insert_key插入
 			if (!b->level)
 				bkey_put(b->c, k);
 
 			ret |= btree_insert_key(b, k, replace_key);
 			bch_keylist_pop_front(insert_keys);
-		} else if (bkey_cmp(&START_KEY(k), &b->key) < 0) {
+		} else if (bkey_cmp(&START_KEY(k), &b->key) < 0) { //和btree已有key部分重合,计算不重合部分插入
 			BKEY_PADDED(key) temp;
 			bkey_copy(&temp.key, insert_keys->keys);
 
@@ -2058,7 +2058,7 @@ static bool bch_btree_insert_keys(struct btree *b, struct btree_op *op,
 
 			ret |= btree_insert_key(b, &temp.key, replace_key);
 			break;
-		} else {
+		} else { //被现有bkey完全包含，不需要插入
 			break;
 		}
 	}
@@ -2092,14 +2092,14 @@ static int btree_split(struct btree *b, struct btree_op *op,
 			WARN(1, "insufficient reserve for split\n");
 	}
 
-	n1 = btree_node_alloc_replacement(b, op);
+	n1 = btree_node_alloc_replacement(b, op); //复制一个btree node，会从bucket分配
 	if (IS_ERR(n1))
 		goto err;
-
+    //计算是否需要分裂
 	split = set_blocks(btree_bset_first(n1),
 			   block_bytes(n1->c)) > (btree_blocks(b) * 4) / 5;
 
-	if (split) {
+	if (split) { //需要分裂
 		unsigned int keys = 0;
 
 		trace_bcache_btree_node_split(b, btree_bset_first(n1)->keys);
@@ -2108,7 +2108,7 @@ static int btree_split(struct btree *b, struct btree_op *op,
 		if (IS_ERR(n2))
 			goto err_free1;
 
-		if (!b->parent) {
+		if (!b->parent) { //该node没有parent，表示为根节点，需要分配另一个节点作为新的根节点
 			n3 = bch_btree_node_alloc(b->c, op, b->level + 1, NULL);
 			if (IS_ERR(n3))
 				goto err_free2;
@@ -2116,7 +2116,7 @@ static int btree_split(struct btree *b, struct btree_op *op,
 
 		mutex_lock(&n1->write_lock);
 		mutex_lock(&n2->write_lock);
-
+        //将key插入新分配的node: n1
 		bch_btree_insert_keys(n1, op, insert_keys, replace_key);
 
 		/*
@@ -2140,7 +2140,7 @@ static int btree_split(struct btree *b, struct btree_op *op,
 		       btree_bset_first(n2)->keys * sizeof(uint64_t));
 
 		bkey_copy_key(&n2->key, &b->key);
-
+        //将n2的key加入到parent_key的keylist中以便添加里面的key
 		bch_keylist_add(&parent_keys, &n2->key);
 		bch_btree_node_write(n2, &cl);
 		mutex_unlock(&n2->write_lock);
@@ -2156,11 +2156,11 @@ static int btree_split(struct btree *b, struct btree_op *op,
 	bch_btree_node_write(n1, &cl);
 	mutex_unlock(&n1->write_lock);
 
-	if (n3) {
+	if (n3) { //n3存在，将其设为新的btree root
 		/* Depth increases, make a new root */
 		mutex_lock(&n3->write_lock);
 		bkey_copy_key(&n3->key, &MAX_KEY);
-		bch_btree_insert_keys(n3, op, &parent_keys, NULL);
+		bch_btree_insert_keys(n3, op, &parent_keys, NULL); //将parent_keys提交到n3中
 		bch_btree_node_write(n3, &cl);
 		mutex_unlock(&n3->write_lock);
 
@@ -2170,18 +2170,18 @@ static int btree_split(struct btree *b, struct btree_op *op,
 	} else if (!b->parent) {
 		/* Root filled up but didn't need to be split */
 		closure_sync(&cl);
-		bch_btree_set_root(n1);
+		bch_btree_set_root(n1); //root不需要split的情况，将n1设置为btree root
 	} else {
 		/* Split a non root node */
 		closure_sync(&cl);
 		make_btree_freeing_key(b, parent_keys.top);
 		bch_keylist_push(&parent_keys);
-
+        //将parent_keys中的key提交到b->parent中
 		bch_btree_insert_node(b->parent, op, &parent_keys, NULL, NULL);
 		BUG_ON(!bch_keylist_empty(&parent_keys));
 	}
 
-	btree_node_free(b);
+	btree_node_free(b);  //b无论走哪个分支，都不在需要所以释放， 对于上面的case2,bucket的prio由于重建，所以自动被更新了。
 	rw_unlock(true, n1);
 
 	bch_time_stats_update(&b->c->btree_split_time, start_time);
@@ -2207,9 +2207,9 @@ err:
 }
 
 static int bch_btree_insert_node(struct btree *b, struct btree_op *op,
-				 struct keylist *insert_keys,
-				 atomic_t *journal_ref,
-				 struct bkey *replace_key)
+				 struct keylist *insert_keys, //需要插入的keylist
+				 atomic_t *journal_ref,       //journal信息
+				 struct bkey *replace_key)    //需要replace的key
 {
 	struct closure cl;
 
@@ -2225,16 +2225,16 @@ static int bch_btree_insert_node(struct btree *b, struct btree_op *op,
 
 	if (bch_keylist_nkeys(insert_keys) > insert_u64s_remaining(b)) {
 		mutex_unlock(&b->write_lock);
-		goto split;
+		goto split;  //btree node空间不够，需要拆分
 	}
 
 	BUG_ON(write_block(b) != btree_bset_last(b));
 
 	if (bch_btree_insert_keys(b, op, insert_keys, replace_key)) {
 		if (!b->level)
-			bch_btree_leaf_dirty(b, journal_ref);
+			bch_btree_leaf_dirty(b, journal_ref);  //叶子节点标记为dirty，延迟更新
 		else
-			bch_btree_node_write(b, &cl);
+			bch_btree_node_write(b, &cl);  //元数据节点立刻更新
 	}
 
 	mutex_unlock(&b->write_lock);
@@ -2334,11 +2334,11 @@ int bch_btree_insert(struct cache_set *c, struct keylist *keys,
 	op.journal_ref	= journal_ref;
 	op.replace_key	= replace_key;
 
-	while (!ret && !bch_keylist_empty(keys)) {
+	while (!ret && !bch_keylist_empty(keys)) { //遍历keylist
 		op.op.lock = 0;
 		ret = bch_btree_map_leaf_nodes(&op.op, c,
 					       &START_KEY(keys->keys),
-					       btree_insert_fn);
+					       btree_insert_fn);  //对每个keylist项，调用btree_insert_fn操作b+tree
 	}
 
 	if (ret) {
@@ -2444,7 +2444,7 @@ static int bch_btree_map_keys_recurse(struct btree *b, struct btree_op *op,
 
 int bch_btree_map_keys(struct btree_op *op, struct cache_set *c,
 		       struct bkey *from, btree_map_keys_fn *fn, int flags)
-{   //遍历b+tree进行查找，调用 bch_btree_map_keys_recurse
+{   //递归遍历b+tree进行查找，调用 bch_btree_map_keys_recurse
 	return btree_root(map_keys_recurse, c, op, from, fn, flags);
 }
 
@@ -2533,7 +2533,7 @@ void bch_refill_keybuf(struct cache_set *c, struct keybuf *buf,
 	refill.pred	= pred;
 
 	bch_btree_map_keys(&refill.op, c, &buf->last_scanned,
-			   refill_keybuf_fn, MAP_END_KEY);
+			   refill_keybuf_fn, MAP_END_KEY); //将满足条件refill->pred的key加入到RBTtree中
 
 	trace_bcache_keyscan(refill.nr_found,
 			     KEY_INODE(&start), KEY_OFFSET(&start),
@@ -2635,7 +2635,7 @@ struct keybuf_key *bch_keybuf_next_rescan(struct cache_set *c,
 			break;
 		}
 
-		bch_refill_keybuf(c, buf, end, pred);
+		bch_refill_keybuf(c, buf, end, pred); //遍历b+tree叶子节点来填充keybuf_key（红黑树）
 	}
 
 	return ret;

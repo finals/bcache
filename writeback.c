@@ -561,7 +561,7 @@ static bool dirty_pred(struct keybuf *buf, struct bkey *k)
 
 	BUG_ON(KEY_INODE(k) != dc->disk.id);
 
-	return KEY_DIRTY(k);
+	return KEY_DIRTY(k);  //bch_data_insert_start中根据情况会SET_KEY_DIRTY
 }
 
 static void refill_full_stripes(struct cached_dev *dc)
@@ -630,7 +630,7 @@ static bool refill_dirty(struct cached_dev *dc)
 		buf->last_scanned = start;
 
 	if (dc->partial_stripes_expensive) {
-		refill_full_stripes(dc);
+		refill_full_stripes(dc);  //用stripe来管理dirty区域，一个stripe的默认扇区数为dc->disk.stripe_size = q->limits.io_opt>> 9; 该函数对每个dirty的stripe区域调用
 		if (array_freelist_empty(&buf->freelist))
 			return false;
 	}
@@ -671,7 +671,7 @@ static int bch_writeback_thread(void *arg)
 		 * to wake up it.
 		 */
 		if (!test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags) &&
-		    (!atomic_read(&dc->has_dirty) || !dc->writeback_running)) {
+		    (!atomic_read(&dc->has_dirty) || !dc->writeback_running)) { //检查是否包含dirty数据，writeback是否生效
 			up_write(&dc->writeback_lock);
 
 			if (kthread_should_stop() ||
