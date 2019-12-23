@@ -47,6 +47,8 @@ static const char * const error_actions[] = {
 	NULL
 };
 
+#define VERSION "20191223"
+
 write_attribute(attach);
 write_attribute(detach);
 write_attribute(unregister);
@@ -115,6 +117,7 @@ read_attribute(writeback_rate_debug);
 
 read_attribute(stripe_size);
 read_attribute(partial_stripes_expensive);
+read_attribute(version);
 
 rw_attribute(synchronous);
 rw_attribute(journal_delay_ms);
@@ -226,6 +229,10 @@ SHOW(__bch_cached_dev)
 			       "next io:\t%llims\n",
 			       rate, dirty, target, proportional,
 			       integral, change, next_io);
+	}
+
+	if (attr == &sysfs_version) {
+        return sprintf(buf, "%s\n", VERSION);
 	}
 
 	sysfs_hprint(dirty_data,
@@ -482,6 +489,7 @@ static struct attribute *bch_cached_dev_files[] = {
 	&sysfs_io_disable,
 	&sysfs_dirty_data,
 	&sysfs_stripe_size,
+	&sysfs_version,
 	&sysfs_partial_stripes_expensive,
 	&sysfs_sequential_cutoff,
 	&sysfs_clear_stats,
