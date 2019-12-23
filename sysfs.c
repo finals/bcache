@@ -47,7 +47,7 @@ static const char * const error_actions[] = {
 	NULL
 };
 
-#define VERSION "20191223"
+#define VERSION "20191223-1459"
 
 write_attribute(attach);
 write_attribute(detach);
@@ -743,6 +743,7 @@ SHOW(__bch_cache_set)
 		    c->congested_read_threshold_us);
 	sysfs_print(congested_write_threshold_us,
 		    c->congested_write_threshold_us);
+	sysfs_print(gc_sleep_ms, c->gc_sleep_ms);
 
 	sysfs_print(cutoff_writeback, bch_cutoff_writeback);
 	sysfs_print(cutoff_writeback_sync, bch_cutoff_writeback_sync);
@@ -826,6 +827,7 @@ STORE(__bch_cache_set)
 	sysfs_strtoul_clamp(congested_write_threshold_us,
 			    c->congested_write_threshold_us,
 			    0, UINT_MAX);
+	sysfs_strtoul_clamp(gc_sleep_ms, c->gc_sleep_ms, 100, 2000);
 
 	if (attr == &sysfs_errors) {
 		v = __sysfs_match_string(error_actions, -1, buf);
