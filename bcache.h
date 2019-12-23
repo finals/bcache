@@ -298,7 +298,7 @@ enum stop_on_failure {
 struct rate_limit_advisor {
     uint64_t wb_io_count;
 	uint64_t wb_data_count;
-}
+};
 
 struct cached_dev {
 	struct list_head	list;
