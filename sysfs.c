@@ -98,6 +98,7 @@ read_attribute(cutoff_writeback);
 read_attribute(cutoff_writeback_sync);
 rw_attribute(congested_read_threshold_us);
 rw_attribute(congested_write_threshold_us);
+rw_attribute(gc_sleep_ms);
 
 rw_attribute(sequential_cutoff);
 rw_attribute(data_csum);
@@ -929,6 +930,7 @@ static struct attribute *bch_cache_set_files[] = {
 	&sysfs_congested,
 	&sysfs_congested_read_threshold_us,
 	&sysfs_congested_write_threshold_us,
+	&sysfs_gc_sleep_ms,
 	&sysfs_clear_stats,
 	NULL
 };
