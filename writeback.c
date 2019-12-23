@@ -651,6 +651,27 @@ static bool refill_dirty(struct cached_dev *dc)
 	return bkey_cmp(&buf->last_scanned, &start_pos) >= 0;
 }
 
+static void wakeup_gc_conditionally(struct cache_set *c)
+{
+    uint64_t now = local_clock();
+    if (c->gc_stats.in_use < 50 && now - c->gc_stats.last_trigger_gc_time > 600 * NSEC_PER_SEC) {
+        goto trigger;
+    }
+    if (c->gc_stats.in_use >= 50 && c->gc_stats.in_use < 70 && now - c->gc_stats.last_trigger_gc_time > 300 * NSEC_PER_SEC) {
+        goto trigger;
+    }
+    if (c->gc_stats.in_use >= 70 && now - c->gc_stats.last_trigger_gc_time > 60 * NSEC_PER_SEC) {
+        goto trigger;
+    }
+    
+    //do nothing
+    return;
+trigger:
+    atomic_set(&c->sectors_to_gc, -1);
+    c->gc_stats.last_trigger_gc_time = now;
+	wake_up_gc(c);
+}
+
 static int bch_writeback_thread(void *arg)
 {
 	struct cached_dev *dc = arg;
@@ -718,6 +739,9 @@ static int bch_writeback_thread(void *arg)
 			    (BCH_ENABLE_AUTO_GC|BCH_DO_AUTO_GC)) {
 				c->gc_after_writeback &= ~BCH_DO_AUTO_GC;
 				force_wake_up_gc(c);
+			} else {
+                //回写完成，有条件地触发gc回收未使用bucket
+                wakeup_gc_conditionally(c);
 			}
 		}
 
@@ -727,6 +751,8 @@ static int bch_writeback_thread(void *arg)
 
 		if (searched_full_index) {
 			unsigned int delay = dc->writeback_delay * HZ;
+
+            wakeup_gc_conditionally(c); ////writeback线程睡眠之前，有条件地触发gc回收bucket
 
 			while (delay &&
 			       !kthread_should_stop() &&
