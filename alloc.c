@@ -96,7 +96,7 @@ void bch_rescale_priorities(struct cache_set *c, int sectors)
 	do {
 		r = atomic_read(&c->rescale);
 
-		if (r >= 0) //用atomic控制并发，当已有task执行rescale时,直接返回
+		if (r >= 0) //r并发控制，由于下面要遍历所有缓存设备的所有bucket，不允许并发
 			return;
 	} while (atomic_cmpxchg(&c->rescale, r, r + next) != r);
 
@@ -109,7 +109,7 @@ void bch_rescale_priorities(struct cache_set *c, int sectors)
 			if (b->prio &&
 			    b->prio != BTREE_PRIO &&
 			    !atomic_read(&b->pin)) {
-				b->prio--;  //减少除元数据和未分配的bucket外的prio, 最小减到0
+				b->prio--;  //减少除元数据和未分配(pin为0)的bucket的prio, 最小减到0
 				c->min_prio = min(c->min_prio, b->prio);
 			}
 
@@ -147,7 +147,7 @@ void __bch_invalidate_one_bucket(struct cache *ca, struct bucket *b)
 		trace_bcache_invalidate(ca, b - ca->buckets);
 
 	bch_inc_gen(ca, b);
-	b->prio = INITIAL_PRIO;
+	b->prio = INITIAL_PRIO; //重置prio为较大值
 	atomic_inc(&b->pin);
 }
 
@@ -184,7 +184,7 @@ static void invalidate_buckets_lru(struct cache *ca)
 
 	ca->heap.used = 0;
 
-	for_each_bucket(b, ca) {  //遍历cache disk的每个bucket
+	for_each_bucket(b, ca) {  //遍历缓存设备的每个bucket
 		if (!bch_can_invalidate_bucket(ca, b))  //判断bucket是否能够回收
 			continue;
 
@@ -195,10 +195,10 @@ static void invalidate_buckets_lru(struct cache *ca)
 			heap_sift(&ca->heap, 0, bucket_max_cmp);
 		}
 	}
-    //将heap中的bucket按照prio从小到大排序
+    //heap中的bucket以prio值做比较保持最小堆，从小到大排序
 	for (i = ca->heap.used / 2 - 1; i >= 0; --i)
 		heap_sift(&ca->heap, i, bucket_min_cmp);
-   //一次从堆中取出bucket,做bch_invalidate_one_bucket； 直到ca->free_inc满 
+    //将bucket从heap中取出，执行invalidate，并添加到free_inc链表 
 	while (!fifo_full(&ca->free_inc)) {
 		if (!heap_pop(&ca->heap, b, bucket_min_cmp)) {
 			/*
@@ -206,8 +206,8 @@ static void invalidate_buckets_lru(struct cache *ca)
 			 * multiple times when it can't do anything
 			 */
 			ca->invalidate_needs_gc = 1;
-			wake_up_gc(ca->set);  //若ca->free_inc未满，则唤醒gc线程
-			return;
+			wake_up_gc(ca->set);  
+			return; //heap为空的情况下，无bucket能够invalidate，需唤醒gc线程，进行垃圾回收(填充heap)
 		}
 
 		bch_invalidate_one_bucket(ca, b);
@@ -224,12 +224,12 @@ static void invalidate_buckets_fifo(struct cache *ca)
 		    ca->fifo_last_bucket >= ca->sb.nbuckets)
 			ca->fifo_last_bucket = ca->sb.first_bucket;
 
-		b = ca->buckets + ca->fifo_last_bucket++;  //找到最先分配的bucket
+		b = ca->buckets + ca->fifo_last_bucket++;  //从上次invalidate的位置开始执行invalidate，符合fifo
 
 		if (bch_can_invalidate_bucket(ca, b))
 			bch_invalidate_one_bucket(ca, b);
 
-		if (++checked >= ca->sb.nbuckets) {  //若由于很多bucket不能回收, 这时需要唤醒gc
+		if (++checked >= ca->sb.nbuckets) {  //扫描bucket数量超过缓存设备分配的bucket数量, 需要唤醒gc回收bucket
 			ca->invalidate_needs_gc = 1;
 			wake_up_gc(ca->set);
 			return;

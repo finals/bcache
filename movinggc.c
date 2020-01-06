@@ -120,7 +120,7 @@ static void read_moving_submit(struct closure *cl)
     //该bio的bi_sector由bch_moving_gc中keybuf * w 中获得
 	bch_submit_bbio(bio, io->op.c, &io->w->key, 0);
 
-	continue_at(cl, write_moving, io->op.wq); //从缓存设备读取数据后，写入后端设备
+	continue_at(cl, write_moving, io->op.wq); //从缓存设备读取数据后，写入缓存设备
 }
 
 static void read_moving(struct cache_set *c)

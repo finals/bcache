@@ -445,7 +445,7 @@ struct cache {
 	size_t			fifo_last_bucket;
 
 	/* Allocation stuff: */
-	struct bucket		*buckets;
+	struct bucket		*buckets; //bucket数组，代表本cache中的所有bucket
 
 	DECLARE_HEAP(struct bucket *, heap);
 
